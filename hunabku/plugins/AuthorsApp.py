@@ -107,40 +107,40 @@ class AuthorsApp(HunabkuPluginBase):
                 return None
 
 
-        if start_year and not end_year:
-                cites_pipeline=[
-                    {"$match":{"year_published":{"$gte":start_year},"authors.id":ObjectId(idx)}}
-                ]
-                
-        elif end_year and not start_year:
-                cites_pipeline=[
-                    {"$match":{"year_published":{"$lte":end_year},"authors.id":ObjectId(idx)}}
-                ]
-        elif start_year and end_year:
-                cites_pipeline=[
-                    {"$match":{"year_published":{"$gte":start_year,"$lte":end_year},"authors.id":ObjectId(idx)}}
-                ]
-        else:
-            cites_pipeline=[
-                {"$match":{"authors.id":ObjectId(idx)}}
-            ]
-        
+
+        pipeline=[
+            {"$match":{"authors.id":ObjectId(idx)}}
+        ]
 
 
-        geo_pipeline = cites_pipeline[:] # a clone
-
-        cites_pipeline.extend([
+        pipeline.extend([
+            {"$match":{"citations":{"$ne":[]}}},
             {"$unwind":"$citations"},
             {"$lookup":{
                 "from":"documents",
                 "localField":"citations",
                 "foreignField":"_id",
-                "as":"citation"}
+                "as":"citers"}
             },
-            {"$unwind":"$citation"},
-            {"$project":{"citation.year_published":1}},
+            {"$unwind":"$citers"}])
+
+
+        if start_year and not end_year:
+            pipeline.extend([{"$match":{"citers.year_published":{"$gte":start_year}}}])
+        elif end_year and not start_year:
+            pipeline.extend([{"$match":{"citers.year_published":{"$lte":end_year}}}])
+        elif start_year and end_year:
+            pipeline.extend([{"$match":{"citers.year_published":{"$gte":start_year,"$lte":end_year}}}])
+
+            
+
+
+        geo_pipeline = pipeline[:] # a clone
+
+
+        pipeline.extend([
             {"$group":{
-                "_id":"$citation.year_published","count":{"$sum":1}}
+                "_id":"$citers.year_published","count":{"$sum":1}}
             },
             {"$sort":{
                 "_id":-1
@@ -148,11 +148,16 @@ class AuthorsApp(HunabkuPluginBase):
         ])
 
 
+
+ 
+
+
+    
+
         geo_pipeline.extend([
-            {"$match":{"citations":{"$ne":[]}}},{"$project":{"citations":1}},
-            {"$unwind":"$citations"},{"$lookup":{"from":"documents","foreignField":"_id","localField":"citations","as":"citations"}},
-            {"$project":{"citations.authors.affiliations":1}},
-            {"$lookup":{"from":"institutions","foreignField":"_id","localField":"citations.authors.affiliations.id","as":"affiliation"}},
+            {"$unwind":"$citers.authors"},
+            {"$project":{"citers.authors.affiliations":1}},
+            {"$lookup":{"from":"institutions","foreignField":"_id","localField":"citers.authors.affiliations.id","as":"affiliation"}},
             {"$project":{"affiliation.addresses.country":1,"affiliation.addresses.country_code":1}},
             {"$unwind":"$affiliation"},{"$group":{"_id":"$affiliation.addresses.country_code","count":{"$sum":1},
              "country": {"$first": "$affiliation.addresses.country"}}},{"$project": {"country": 1,"_id":1,"count": 1, "log_count": {"$ln": "$count"}}},
@@ -160,10 +165,12 @@ class AuthorsApp(HunabkuPluginBase):
         ])
 
 
-
-        for reg in self.colav_db["documents"].aggregate(cites_pipeline):
+        for idx,reg in enumerate(self.colav_db["documents"].aggregate(pipeline)):
             entry["citations"]+=reg["count"]
             entry["yearly_citations"].append({"year":reg["_id"],"value":reg["count"]})
+
+
+
 
         for i, reg in enumerate(self.colav_db["documents"].aggregate(geo_pipeline)):
             entry["geo"].append({"country": reg["country"],
@@ -172,10 +179,7 @@ class AuthorsApp(HunabkuPluginBase):
                                  "log_count": reg["log_count"]}
                                  )
     
-            
-
-
-        return {"data":entry}
+        return {"data": entry}
 
     def get_coauthors(self,idx=None,start_year=None,end_year=None):
         initial_year=0
