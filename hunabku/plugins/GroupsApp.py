@@ -4,6 +4,7 @@ from pymongo import ASCENDING,DESCENDING
 from pickle import load
 from math import log
 from datetime import date
+import pandas as pd 
 
 class GroupsApp(HunabkuPluginBase):
     def __init__(self, hunabku):
@@ -376,13 +377,10 @@ class GroupsApp(HunabkuPluginBase):
 
         return venn_source
 
-    def get_production(self,idx=None,max_results=100,page=1,start_year=None,end_year=None,sort=None,direction=None):
+    def get_production_by_type(self,idx=None,max_results=100,page=1,start_year=None,end_year=None,sort=None,direction=None,tipo=None):
 
-        initial_year=0
-        final_year=0
-        total=0
-        open_access=[]
-        
+        total = 0
+
         if start_year:
             try:
                 start_year=int(start_year)
@@ -395,49 +393,23 @@ class GroupsApp(HunabkuPluginBase):
             except:
                 print("Could not convert end year to int")
                 return None
+
         if idx:
 
             if start_year and not end_year:
                 cursor=self.colav_db['documents'].find({"year_published":{"$gte":start_year},"authors.affiliations.branches.id":ObjectId(idx)})
-                venn_query={"year_published":{"$gte":start_year},"authors.affiliations.branches.id":ObjectId(idx)}
-                open_access.extend([
-                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$gte":start_year},"authors.affiliations.branches.id":ObjectId(idx)})  },
-                    {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$gte":start_year},"authors.affiliations.branches.id":ObjectId(idx)})   },
-                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$gte":start_year},"authors.affiliations.branches.id":ObjectId(idx)}) },
-                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$gte":start_year},"authors.affiliations.branches.id":ObjectId(idx)}) },
-                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$gte":start_year},"authors.affiliations.branches.id":ObjectId(idx)}) }
-                ])
+
             elif end_year and not start_year:
                 cursor=self.colav_db['documents'].find({"year_published":{"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)})
-                venn_query={"year_published":{"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)}
-                open_access.extend([
-                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)})  },
-                    {"type":"gold"  ,"value": self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)})  },
-                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)}) },
-                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)}) },
-                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)}) }
-                ])
+
             elif start_year and end_year:
                 cursor=self.colav_db['documents'].find({"year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)})
-                venn_query={"year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)}
-                open_access.extend([
-                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)}) },
-                    {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)})  },
-                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)})},
-                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)})},
-                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)})}
-                ])
-            else:
-                cursor=self.colav_db['documents'].find({"authors.affiliations.branches.id":ObjectId(idx)})
-                venn_query={"authors.affiliations.branches.id":ObjectId(idx)}
-                open_access.extend([
-                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","authors.affiliations.branches.id":ObjectId(idx)}) },
-                    {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold","authors.affiliations.branches.id":ObjectId(idx)})  },
-                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","authors.affiliations.branches.id":ObjectId(idx)})},
-                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","authors.affiliations.branches.id":ObjectId(idx)})},
-                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","authors.affiliations.branches.id":ObjectId(idx)})}
-                ])
 
+            else:
+                cursor=self.colav_db['documents'].find({"authors.affiliations.branches.id":ObjectId(idx),"publication_type.type":tipo})
+
+
+        
         total=cursor.count()
         if not page:
             page=1
@@ -466,9 +438,7 @@ class GroupsApp(HunabkuPluginBase):
         if sort=="year" and direction=="descending":
             cursor.sort([("year_published",DESCENDING)])
 
-        entry={}
-
- 
+        entry=[]
 
         for doc in cursor:
             
@@ -493,37 +463,89 @@ class GroupsApp(HunabkuPluginBase):
 
             try:
                 if doc["publication_type"]["source"]=="lens":
-                    doc_type = doc["publication_type"]["type"] 
-                        
-                    if doc_type in entry.keys():
-                        entry[doc_type].append({
-                        "id":doc["_id"],
-                        "title":doc["titles"][0]["title"],
-                        "citations_count":doc["citations_count"],
-                        "year_published":doc["year_published"],
-                        "open_access_status":doc["open_access_status"],
-                        "authors":authors
-                        })
-                    else:
-                        entry[doc_type]=[{
-                        "id":doc["_id"],
-                        "title":doc["titles"][0]["title"],
-                        "citations_count":doc["citations_count"],
-                        "year_published":doc["year_published"],
-                        "open_access_status":doc["open_access_status"],
-                        "authors":authors
-                        }]
+
+                    entry.append({
+                    "id":doc["_id"],
+                    "title":doc["titles"][0]["title"],
+                    "citations_count":doc["citations_count"],
+                    "year_published":doc["year_published"],
+                    "open_access_status":doc["open_access_status"],
+                    "authors":authors
+                    })
+
             except:
                 continue
+        return {"total":total,"data":entry}
 
 
+    def get_production(self,idx=None,start_year=None,end_year=None,sort=None,direction=None):
+
+        open_access=[]
+
+       
+        
+        if start_year:
+            try:
+                start_year=int(start_year)
+            except:
+                print("Could not convert start year to int")
+                return None
+        if end_year:
+            try:
+                end_year=int(end_year)
+            except:
+                print("Could not convert end year to int")
+                return None
+        if idx:
+
+            if start_year and not end_year:
+                venn_query={"year_published":{"$gte":start_year},"authors.affiliations.branches.id":ObjectId(idx)}
+                open_access.extend([
+                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$gte":start_year},"authors.affiliations.branches.id":ObjectId(idx)})  },
+                    {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$gte":start_year},"authors.affiliations.branches.id":ObjectId(idx)})   },
+                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$gte":start_year},"authors.affiliations.branches.id":ObjectId(idx)}) },
+                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$gte":start_year},"authors.affiliations.branches.id":ObjectId(idx)}) },
+                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$gte":start_year},"authors.affiliations.branches.id":ObjectId(idx)}) }
+                ])
+            elif end_year and not start_year:
+                venn_query={"year_published":{"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)}
+                open_access.extend([
+                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)})  },
+                    {"type":"gold"  ,"value": self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)})  },
+                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)}) },
+                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)}) },
+                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)}) }
+                ])
+            elif start_year and end_year:
+                venn_query={"year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)}
+                open_access.extend([
+                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)}) },
+                    {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)})  },
+                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)})},
+                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)})},
+                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)})}
+                ])
+            else:
+                venn_query={"authors.affiliations.branches.id":ObjectId(idx)}
+                open_access.extend([
+                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","authors.affiliations.branches.id":ObjectId(idx)}) },
+                    {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold","authors.affiliations.branches.id":ObjectId(idx)})  },
+                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","authors.affiliations.branches.id":ObjectId(idx)})},
+                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","authors.affiliations.branches.id":ObjectId(idx)})},
+                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","authors.affiliations.branches.id":ObjectId(idx)})}
+                ])
+
+
+ 
+
+
+
+        tipos = self.colav_db['documents'].distinct("publication_type.type")
 
         return {
-            "data":entry,
             "open_access":open_access,
             "venn_source":self.get_venn(venn_query),
-            "page":page,
-            "total_results":total,
+            "types":tipos
 
             }
 
@@ -853,6 +875,7 @@ class GroupsApp(HunabkuPluginBase):
                 }
         """
         data = self.request.args.get('data')
+        tipo = self.request.args.get('type')
 
 
         if data=="info":
@@ -877,7 +900,13 @@ class GroupsApp(HunabkuPluginBase):
             start_year=self.request.args.get('start_year')
             end_year=self.request.args.get('end_year')
             sort=self.request.args.get('sort')
-            production=self.get_production(idx,max_results,page,start_year,end_year,sort,"descending")
+
+
+            if tipo == None: 
+                production=self.get_production(idx,start_year,end_year,sort,"descending")
+            else:
+                production=self.get_production_by_type(idx,max_results,page,start_year,end_year,sort,"descending",tipo)
+
             if production:
                 response = self.app.response_class(
                 response=self.json.dumps(production),
