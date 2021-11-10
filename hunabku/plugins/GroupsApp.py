@@ -427,7 +427,7 @@ class GroupsApp(HunabkuPluginBase):
             except:
                 print("Could not convert end max to int")
                 return None
-        cursor=cursor.skip(max_results*(page-1)).limit(max_results)
+        
 
         if sort=="citations" and direction=="ascending":
             cursor.sort([("citations_count",ASCENDING)])
@@ -437,6 +437,8 @@ class GroupsApp(HunabkuPluginBase):
             cursor.sort([("year_published",ASCENDING)])
         if sort=="year" and direction=="descending":
             cursor.sort([("year_published",DESCENDING)])
+
+        cursor=cursor.skip(max_results*(page-1)).limit(max_results)
 
         entry=[]
 
@@ -464,12 +466,15 @@ class GroupsApp(HunabkuPluginBase):
             try:
                 if doc["publication_type"]["source"]=="lens":
 
+                    source=self.colav_db["sources"].find_one({"_id":doc["source"]["id"]})
+
                     entry.append({
                     "id":doc["_id"],
                     "title":doc["titles"][0]["title"],
                     "citations_count":doc["citations_count"],
                     "year_published":doc["year_published"],
                     "open_access_status":doc["open_access_status"],
+                    "source":{"name":source["title"],"id":str(source["_id"])},
                     "authors":authors
                     })
 
@@ -536,11 +541,9 @@ class GroupsApp(HunabkuPluginBase):
                 ])
 
 
- 
 
 
-
-        tipos = self.colav_db['documents'].distinct("publication_type.type")
+        tipos = self.colav_db['documents'].distinct("publication_type.type",{"authors.affiliations.branches.id":ObjectId(idx)})
 
         return {
             "open_access":open_access,

@@ -2,10 +2,8 @@ from hunabku.HunabkuBase import HunabkuPluginBase, endpoint
 from bson import ObjectId
 from pymongo import ASCENDING,DESCENDING
 from pickle import load
-from currency_converter import CurrencyConverter
 from datetime import date
 from math import log
-from cpi import inflate
 from flask import redirect
 
 
@@ -344,7 +342,7 @@ class InstitutionsApp(HunabkuPluginBase):
             except:
                 print("Could not convert end max to int")
                 return None
-        cursor=cursor.skip(max_results*(page-1)).limit(max_results)
+ 
 
         if sort=="citations" and direction=="ascending":
             cursor.sort([("citations_count",ASCENDING)])
@@ -354,6 +352,8 @@ class InstitutionsApp(HunabkuPluginBase):
             cursor.sort([("year_published",ASCENDING)])
         if sort=="year" and direction=="descending":
             cursor.sort([("year_published",DESCENDING)])
+
+        cursor=cursor.skip(max_results*(page-1)).limit(max_results)
 
         entry=[]
 
@@ -381,12 +381,15 @@ class InstitutionsApp(HunabkuPluginBase):
             try:
                 if doc["publication_type"]["source"]=="lens":
 
+                    source=self.colav_db["sources"].find_one({"_id":doc["source"]["id"]})
+
                     entry.append({
                     "id":doc["_id"],
                     "title":doc["titles"][0]["title"],
                     "citations_count":doc["citations_count"],
                     "year_published":doc["year_published"],
                     "open_access_status":doc["open_access_status"],
+                    "source":{"name":source["title"],"id":str(source["_id"])},
                     "authors":authors
                     })
 
@@ -634,158 +637,7 @@ class InstitutionsApp(HunabkuPluginBase):
             papers.append(entry)
         return str(papers)
     
-    def get_apc(self,idx=None,start_year=None,end_year=None):
-        initial_year=0
-        final_year=0
-
-        base_year=2012
-
-        if start_year:
-            try:
-                start_year=int(start_year)
-            except:
-                print("Could not convert start year to int")
-                return None
-        if end_year:
-            try:
-                end_year=int(end_year)
-            except:
-                print("Could not convert end year to int")
-                return None
-        if idx:
-            result=self.colav_db['documents'].find({"authors.affiliations.id":ObjectId(idx)},{"year_published":1}).sort([("year_published",ASCENDING)]).limit(1)
-            if result:
-                result=list(result)
-                if len(result)>0:
-                    initial_year=result[0]["year_published"]
-            result=self.colav_db['documents'].find({"authors.affiliations.id":ObjectId(idx)},{"year_published":1}).sort([("year_published",DESCENDING)]).limit(1)
-            if result:
-                result=list(result)
-                if len(result)>0:
-                    final_year=result[0]["year_published"]
-
-            if start_year and not end_year:
-                pipeline=[
-                    {"$match":{"year_published":{"$gte":start_year},"authors.affiliations.id":ObjectId(idx)}}
-                ]
-            elif end_year and not start_year:
-                pipeline=[
-                    {"$match":{"year_published":{"$lte":end_year},"authors.affiliations.id":ObjectId(idx)}}
-                ]
-            elif start_year and end_year:
-                pipeline=[
-                    {"$match":{"year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.id":ObjectId(idx)}}
-                ]
-            else:
-                pipeline=[
-                    {"$match":{"authors.affiliations.id":ObjectId(idx)}}
-                ]
-
-        else:
-            pipeline=[]
-
-            result=self.colav_db['documents'].find({},{"year_published":1}).sort([("year_published",ASCENDING)]).limit(1)
-            if result:
-                result=list(result)
-                if len(result)>0:
-                    initial_year=result[0]["year_published"]
-            result=self.colav_db['documents'].find({},{"year_published":1}).sort([("year_published",DESCENDING)]).limit(1)
-            if result:
-                result=list(result)
-                if len(result)>0:
-                    final_year=result[0]["year_published"]
-        
-        entry={
-            "yearly":{},
-            "faculty":{},
-            "department":{},
-            "group":{},
-            "publisher":{},
-            "openaccess":{}
-        }
-
-        pipeline.extend([
-            {"$lookup":{"from":"sources","localField":"source.id","foreignField":"_id","as":"source"}},
-            {"$project":{"authors":1,"source.apc_charges":1,"source.apc_currency":1,"source.publisher":1,"year_published":1,"open_access_status":1}},
-            {"$match":{"source.apc_charges":{"$ne":""}}},
-            {"$unwind":"$source"}
-        ])
-
-        c = CurrencyConverter()
-        now=date.today()
-        for reg in self.colav_db["documents"].aggregate(pipeline):
-            value=0
-            if reg["year_published"]==now.year:
-                continue
-            if reg["source"]["apc_currency"]=="USD":
-                raw_value=reg["source"]["apc_charges"]
-                value=inflate(raw_value,reg["year_published"],to=base_year)
-            else:
-                try:
-                    raw_value=c.convert(reg["source"]["apc_charges"], reg["source"]["apc_currency"], 'USD')
-                    value=inflate(raw_value,reg["year_published"],to=base_year)
-                except Exception as e:
-                    print("Could not convert currency with error: ",e)
-            if reg["year_published"] in entry["yearly"].keys():
-                entry["yearly"][reg["year_published"]]+=value
-            else:
-                entry["yearly"][reg["year_published"]]=value
-            if reg["source"]["publisher"]:
-                if reg["source"]["publisher"] in entry["publisher"].keys():
-                    entry["publisher"][reg["source"]["publisher"]]+=value
-                else:
-                    entry["publisher"][reg["source"]["publisher"]]=value
-            if reg["open_access_status"]:
-                if reg["open_access_status"] in entry["openaccess"].keys():
-                    entry["openaccess"][reg["open_access_status"]]+=value
-                else:
-                    entry["openaccess"][reg["open_access_status"]]=value
-            found=0
-            for author in reg["authors"]:
-                for aff in author["affiliations"]:
-                    if aff["id"]!=ObjectId(idx):
-                        continue
-                    if not "branches" in aff.keys():
-                        continue
-                    for branch in aff["branches"]:
-                        if not "id" in branch.keys():
-                            continue
-                        if str(branch["type"])=="faculty":
-                            if str(branch["id"]) in entry["faculty"].keys():
-                                entry["faculty"][str(branch["id"])]["value"]+=value
-                            else:
-                                entry["faculty"][str(branch["id"])]={"name":branch["name"],"value":value}
-                            found+=1
-                        if branch["type"]=="department":
-                            if str(branch["id"]) in entry["department"].keys():
-                                entry["department"][str(branch["id"])]["value"]+=value
-                            else:
-                                entry["department"][str(branch["id"])]={"name":branch["name"],"value":value}
-                            found+=1
-                        if branch["type"]=="group":
-                            if str(branch["id"]) in entry["group"].keys():
-                                entry["group"][str(branch["id"])]["value"]+=value
-                            else:
-                                entry["group"][str(branch["id"])]={"name":branch["name"],"value":value}
-                            found+=1
-                if found>0:
-                    break
-        sorted_departments=sorted([{"id":key,"name":val["name"],"value":val["value"]} for key,val in entry["department"].items()],key=lambda x:x["value"],reverse=True)
-        entry["department"]=sorted_departments
-        sorted_groups=sorted([{"id":key,"name":val["name"],"value":val["value"]} for key,val in entry["group"].items()],key=lambda x:x["value"],reverse=True)
-        entry["group"]=sorted_groups
-        sorted_faculties=sorted([{"id":key,"name":val["name"],"value":val["value"]} for key,val in entry["faculty"].items()],key=lambda x:x["value"],reverse=True)
-        entry["faculty"]=sorted_faculties
-        sorted_publishers=sorted([{"name":key,"value":val} for key,val in entry["publisher"].items()],key=lambda x:x["value"],reverse=True)
-        entry["publisher"]=sorted_publishers
-
-        filters={
-            "start_year":initial_year,
-            "end_year":final_year
-        }
-
-        return {"data":entry,"filters":filters}
-
+ 
     @endpoint('/app/institutions', methods=['GET'])
     def app_institutions(self):
         """
@@ -1406,23 +1258,6 @@ class InstitutionsApp(HunabkuPluginBase):
             if coauthors:
                 response = self.app.response_class(
                 response=self.json.dumps(coauthors),
-                status=200,
-                mimetype='application/json'
-                )
-            else:
-                response = self.app.response_class(
-                response=self.json.dumps({"status":"Request returned empty"}),
-                status=204,
-                mimetype='application/json'
-                )
-        elif data=="apc":
-            idx = self.request.args.get('id')
-            start_year=self.request.args.get('start_year')
-            end_year=self.request.args.get('end_year')
-            apc=self.get_apc(idx,start_year,end_year)
-            if apc:
-                response = self.app.response_class(
-                response=self.json.dumps(apc),
                 status=200,
                 mimetype='application/json'
                 )

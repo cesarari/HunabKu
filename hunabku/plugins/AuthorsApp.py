@@ -739,7 +739,7 @@ class AuthorsApp(HunabkuPluginBase):
             "data":papers,
             "count":len(papers),
             "page":page,
-            "total_results":total,
+            "total":total,
             "venn_source":self.get_venn(venn_query),
             "open_access":open_access,
 
