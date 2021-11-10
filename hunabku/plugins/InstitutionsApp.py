@@ -459,7 +459,8 @@ class InstitutionsApp(HunabkuPluginBase):
 
 
 
-        tipos = self.colav_db['documents'].distinct("publication_type.type")
+        tipos = self.colav_db['documents'].distinct("publication_type.type",{"authors.affiliations.id":ObjectId(idx)})
+
 
         return {
             "open_access":open_access,
