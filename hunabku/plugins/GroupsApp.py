@@ -480,7 +480,7 @@ class GroupsApp(HunabkuPluginBase):
 
             except:
                 continue
-        return {"total":total,"data":entry,"page":page}
+        return {"total":total,"page":page,"count":len(entry),"data":entry}
 
 
     def get_production(self,idx=None,start_year=None,end_year=None,sort=None,direction=None):
