@@ -419,7 +419,7 @@ class InstitutionsApp(HunabkuPluginBase):
         if idx:
 
             if start_year and not end_year:
-                venn_query={"year_published":{"$gte":start_year},"authors.affiliations.branches.id":ObjectId(idx)}
+                venn_query={"year_published":{"$gte":start_year},"authors.affiliations.id":ObjectId(idx)}
                 open_access.extend([
                     {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{ "$gte":start_year},"authors.affiliations.id":ObjectId(idx)})  },
                     {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":  {"$gte":start_year},"authors.affiliations.id":ObjectId(idx)})   },
@@ -428,7 +428,7 @@ class InstitutionsApp(HunabkuPluginBase):
                     {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$gte":start_year},"authors.affiliations.id":ObjectId(idx)}) }
                 ])
             elif end_year and not start_year:
-                venn_query={"year_published":{"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)}
+                venn_query={"year_published":{"$lte":end_year},"authors.affiliations.id":ObjectId(idx)}
                 open_access.extend([
                     {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published": {"$lte":end_year},"authors.affiliations.id":ObjectId(idx)})  },
                     {"type":"gold"  ,"value": self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published": {"$lte":end_year},"authors.affiliations.id":ObjectId(idx)})  },
@@ -437,7 +437,7 @@ class InstitutionsApp(HunabkuPluginBase):
                     {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$lte":end_year},"authors.affiliations.id":ObjectId(idx)}) }
                 ])
             elif start_year and end_year:
-                venn_query={"year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.branches.id":ObjectId(idx)}
+                venn_query={"year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.id":ObjectId(idx)}
                 open_access.extend([
                     {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published": {"$gte":start_year,"$lte":end_year},"authors.affiliations.id":ObjectId(idx)}) },
                     {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":  {"$gte":start_year,"$lte":end_year},"authors.affiliations.id":ObjectId(idx)})  },
@@ -446,7 +446,7 @@ class InstitutionsApp(HunabkuPluginBase):
                     {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.id":ObjectId(idx)})}
                 ])
             else:
-                venn_query={"authors.affiliations.branches.id":ObjectId(idx)}
+                venn_query={"authors.affiliations.id":ObjectId(idx)}
                 open_access.extend([
                     {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green" ,"authors.affiliations.id":ObjectId(idx)}) },
                     {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold"  ,"authors.affiliations.id":ObjectId(idx)})  },
