@@ -292,7 +292,7 @@ class InstitutionsApp(HunabkuPluginBase):
         return venn_source
 
 
-    def get_production_by_type(self,idx=None,max_results=100,page=1,start_year=None,end_year=None,sort=None,direction=None,tipo=None):
+    def get_production_by_type(self,idx=None,max_results=100,page=1,start_year=None,end_year=None,sort="descending",direction=None,tipo=None):
 
         total = 0
 
@@ -395,7 +395,7 @@ class InstitutionsApp(HunabkuPluginBase):
 
             except:
                 continue
-        return {"total":total,"data":entry}
+        return {"total":total,"data":entry,"page":page}
 
     def get_production(self,idx=None,start_year=None,end_year=None,sort=None,direction=None):
         
