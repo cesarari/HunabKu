@@ -104,7 +104,7 @@ class InstitutionsApp(HunabkuPluginBase):
                 "_id":"$citers.year_published","count":{"$sum":1}}
             },
             {"$sort":{
-                "_id":-1
+                "_id":1
             }}
         ])
 
@@ -143,7 +143,7 @@ class InstitutionsApp(HunabkuPluginBase):
         return {"data": entry}
 
     
-    def get_authors(self,idx=None):
+    def get_authors(self,idx=None,page=1,max_results=100):
         if idx:
 
             pipeline=[
@@ -156,11 +156,42 @@ class InstitutionsApp(HunabkuPluginBase):
                 {"$match":{"authors.affiliations.id":ObjectId(idx)}},
                 {"$group":{"_id":"$authors.id","papers_count":{"$sum":1},"citations_count":{"$sum":"$citations_count"},"author":{"$first":"$authors"}}},
                 {"$sort":{"citations_count":-1}},
-                {"$project":{"_id":1,"author.full_name":1,"author.affiliations.name":1,"papers_count":1,"citations_count":1}},
+                {"$project":{"_id":1,"author.full_name":1,"author.affiliations.name":1,"papers_count":1,"citations_count":1}}
 
 
 
             ])
+
+
+            pipeline_count = pipeline +[{"$count":"total_results"}]
+
+            cursor = self.colav_db["documents"].aggregate(pipeline_count)
+
+            total_results = list(cursor)[0]["total_results"]
+
+
+            if not page:
+                page=1
+            else:
+                try:
+                    page=int(page)
+                except:
+                    print("Could not convert end page to int")
+                    return None
+            if not max_results:
+                max_results=100
+            else:
+                try:
+                    max_results=int(max_results)
+                except:
+                    print("Could not convert end max to int")
+                    return None
+
+            
+            skip = (max_results*(page-1))
+
+            pipeline.extend([{"$skip":skip},{"$limit":max_results}])
+
 
             result= self.colav_db["documents"].aggregate(pipeline)
         
@@ -172,37 +203,104 @@ class InstitutionsApp(HunabkuPluginBase):
                     "name":reg["author"]["full_name"],
                     "papers_count":reg["papers_count"],
                     "citations_count":reg["citations_count"],
-                    "affiliation":reg["author"]["affiliations"][0]["name"]
+                    "affiliation":{"name":reg["author"]["affiliations"][0]["name"], "id":ObjectId(idx)}
                 })
             
-        return {"data":entry}
+        return {"total":total_results,"page":page,"count":len(entry),"data":entry}
 
 
-    def get_coauthors(self,idx=None):
+    def get_coauthors(self,idx=None,start_year=None,end_year=None):
+        if start_year:
+            try:
+                start_year=int(start_year)
+            except:
+                print("Could not convert start year to int")
+                return None
+        if end_year:
+            try:
+                end_year=int(end_year)
+            except:
+                print("Could not convert end year to int")
+                return None
+
         if idx:
-            pipeline = [ 
-                {"$match":{"authors.affiliations.id":ObjectId(idx)} },
-                {"$unwind":"$authors"},{"$match":{"authors.affiliations.id": {"$ne": ObjectId(idx)}}},
-                {"$project":{"authors.affiliations.id":1,"authors.affiliations.name":1}},
-                {"$lookup":{"from":"institutions","localField":"authors.affiliations.id","foreignField":"_id","as":"coInstitutions"}},
-                {"$project":{"coInstitutions._id":1,"coInstitutions.name":1,"coInstitutions.addresses.country":1,"coInstitutions.addresses.country_code":1}},
-                {"$sort":{"coInstitutions.addresses.country":1}}
+            pipeline=[
+                {"$match":{"authors.affiliations.id":ObjectId(idx)}}
             ]
+ 
+            if start_year and not end_year:
+                pipeline=[
+                    {"$match":{"year_published":{"$gte":start_year},"authors.affiliations.id":ObjectId(idx)}}
+                ]
+            elif end_year and not start_year:
+                pipeline=[
+                    {"$match":{"year_published":{"$lte":end_year},"authors.affiliations.id":ObjectId(idx)}}
+                ]
+            elif start_year and end_year:
+                pipeline=[
+                    {"$match":{"year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.id":ObjectId(idx)}}
+                ]
+                
 
-            result= self.colav_db["documents"].aggregate(pipeline)
 
-            entry = []
+        pipeline.extend([
+            {"$unwind":"$authors"},
+            {"$unwind":"$authors.affiliations"},
+            {"$group":{"_id":"$authors.affiliations.id","count":{"$sum":1}}},
+            {"$sort":{"count":-1}},
+            {"$unwind":"$_id"},
+            {"$lookup":{"from":"institutions","localField":"_id","foreignField":"_id","as":"affiliation"}},
+            {"$project":{"count":1,"affiliation.name":1}},
+            {"$unwind":"$affiliation"}
+        ])
 
-            for reg in result:
-                try:
-                    entry.append({
-                        "_id":reg["coInstitutions"][0]["_id"],
-                        "name":reg["coInstitutions"][0]["name"],
-                        "country":reg["coInstitutions"][0]["addresses"][0]["country"],
-                        "country_code":reg["coInstitutions"][0]["addresses"][0]["country_code"]
+        entry={
+            "institutions":[],
+            "geo":[],
+            "institutions_network":{} #{"nodes":load(open("./nodes.p","rb")),"edges":load(open("./edges.p","rb"))}
+        }
+ 
+        entry["institutions"]=[
+            {"name":reg["affiliation"]["name"],"id":reg["_id"],"count":reg["count"]} for reg in self.colav_db["documents"].aggregate(pipeline) if str(reg["_id"]) != idx
+        ]
+    
+        countries=[]
+        country_list=[]
+        pipeline=[pipeline[0]]
+        pipeline.extend([
+            {"$unwind":"$authors"},
+            {"$group":{"_id":"$authors.affiliations.id","count":{"$sum":1}}},
+            {"$unwind":"$_id"},
+            {"$lookup":{"from":"institutions","localField":"_id","foreignField":"_id","as":"affiliation"}},
+            {"$project":{"count":1,"affiliation.addresses.country_code":1,"affiliation.addresses.country":1}},
+            {"$unwind":"$affiliation"},
+            {"$unwind":"$affiliation.addresses"}
+            #{"$sort":{"count":-1}}
+        ])
+        for reg in self.colav_db["documents"].aggregate(pipeline,allowDiskUse=True):
+            #print(reg)
+            if str(reg["_id"])==idx:
+                continue
+            if not "country_code" in reg["affiliation"]["addresses"].keys():
+                continue
+            if reg["affiliation"]["addresses"]["country_code"] and reg["affiliation"]["addresses"]["country"]:
+                if reg["affiliation"]["addresses"]["country_code"] in country_list:
+                    i=country_list.index(reg["affiliation"]["addresses"]["country_code"])
+                    countries[i]["count"]+=reg["count"]
+                else:
+                    country_list.append(reg["affiliation"]["addresses"]["country_code"])
+                    countries.append({
+                        "country":reg["affiliation"]["addresses"]["country"],
+                        "country_code":reg["affiliation"]["addresses"]["country_code"],
+                        "count":reg["count"]
                     })
-                except:
-                    continue
+        #sorted_geo=sorted(countries,key=lambda x:x["count"],reverse=True)
+        #countries=sorted_geo
+        for item in countries:
+            item["log_count"]=log(item["count"])
+        entry["geo"]=countries
+
+
 
         return {"data":entry}
 
@@ -1238,8 +1336,10 @@ class InstitutionsApp(HunabkuPluginBase):
                 )
         elif data=="authors":
             idx = self.request.args.get('id')
+            max_results=self.request.args.get('max')
+            page=self.request.args.get('page')
  
-            authors=self.get_authors(idx)
+            authors=self.get_authors(idx,page,max_results)
             if authors:
                 response = self.app.response_class(
                 response=self.json.dumps(authors),
@@ -1255,8 +1355,10 @@ class InstitutionsApp(HunabkuPluginBase):
 
         elif data=="coauthors":
             idx = self.request.args.get('id')
+            start_year=self.request.args.get('start_year')
+            end_year=self.request.args.get('end_year')
 
-            coauthors=self.get_coauthors(idx)
+            coauthors=self.get_coauthors(idx,start_year,end_year)
             if coauthors:
                 response = self.app.response_class(
                 response=self.json.dumps(coauthors),
