@@ -475,11 +475,12 @@ class AuthorsApp(HunabkuPluginBase):
             entry["coauthors_network"]={"nodes":nodes,"edges":edges}
             entry["institution_network"]={"nodes":aff_nodes,"edges":aff_edges}
         else:
-            au=self.db["authors"].find_one({"_id":idx})
+            au=self.colav_db["authors"].find_one({"_id":idx})
             aff=""
-            if "affiliations" in au.keys():
-                if len(au["affiliations"])>0:
-                    aff=au["affiliations"][0]
+            if au:
+                if "affiliations" in au.keys():
+                    if len(au["affiliations"])>0:
+                        aff=au["affiliations"][0]
 
             entry["coauthors_network"]={"nodes":[{
                 "id":idx,
@@ -490,7 +491,7 @@ class AuthorsApp(HunabkuPluginBase):
                         "size":10
                     },
                     "label":{
-                        "value":au["full_name"]
+                        "value":au["full_name"] if aff!="" else ""
                     }
                 }
             }],"edges":[]}
