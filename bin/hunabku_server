@@ -9,8 +9,12 @@ parser.add_argument('--db', type=str, default='colav',
                     help='database name (default colav)')
 parser.add_argument('--db_ip', type=str, default='localhost',
                     help='mongodb ip (default localhost)')
+parser.add_argument('--arango_ip', type=str, default='localhost',
+                    help='arangodb ip (default localhost)')
 parser.add_argument('--db_port', type=int, default=27017,
                     help='mongodb port (default 27017)')
+parser.add_argument('--arango_port', type=int, default=8529,
+                    help='arango port (default 8529)')
 parser.add_argument(
     '--ip',
     type=str,
@@ -28,6 +32,7 @@ else:
     ip = args.ip
 
 dburi='mongodb://{}:{}/'.format(args.db_ip,args.db_port)
+arangouri="http://{}:{}/".format(args.arango_ip,args.arango_port)
 if __name__ == '__main__':
-    server = Hunabku(apikey=args.apikey, dburi=dburi, ip=ip, port=args.port)
+    server = Hunabku(apikey=args.apikey, dburi=dburi, arangouri=arangouri,ip=ip, port=args.port)
     server.start()

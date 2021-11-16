@@ -3,6 +3,7 @@ from flask import (
 )
 
 from pymongo import MongoClient
+from pyArango.connection import *
 
 import logging
 
@@ -31,6 +32,7 @@ class Hunabku:
             self,
             apikey,
             dburi='mongodb://localhost:27017/',
+            arangouri="http://localhost:8529",
             ip='127.0.0.1',
             port=8080,
             log_file='hunabku.log',
@@ -45,9 +47,13 @@ class Hunabku:
             info_level (logging.DEBUG/INFO etc..): enable/disable debug mode with extra messages output.
         """
         self.dburi = dburi
+        self.arangouri=arangouri
         self.dbclient = MongoClient(dburi)
+        self.arangoclient=Connection(arangoURL=arangouri,username="root", password="poioiulkj")
         self.ip = ip
         self.port = port
+        self.colav_db=self.dbclient["colombia"]
+        self.arangodb=self.arangoclient["colombia"]
         self.info_level = info_level
         self.apikey = apikey
         self.apidoc_dir = 'hunabku_website'
