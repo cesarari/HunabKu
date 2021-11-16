@@ -231,8 +231,7 @@ class AuthorsApp(HunabkuPluginBase):
         entry={
             "coauthors":[],
             "geo":[],
-            "coauthors_network":{},
-            "institution_network":{}
+            "coauthors_network":{}
         }
 
         entry["coauthors"]=[
@@ -277,84 +276,27 @@ class AuthorsApp(HunabkuPluginBase):
 
         nodes=[]
         edges=[]
-        aff_nodes=[]
-        aff_edges=[]
+
         nodes_idlist=[]
         edge_tuples=[]
-        aff_edge_tuples=[]
         arango_edges=[]
         arango_nodes=[]
         arango_mongo_nodes={}
-        arango_mongo_aff_nodes={}
         query="FOR c IN authors FILTER c.mongo_id=='"+idx+"' RETURN {_id:c._id,name:c.name,affiliation:c.affiliation}"
         result=list(self.arangodb.AQLQuery(query,rawResults=True,batchSize=1))
         if result:
             arangoid=result[0]["_id"]
-            aff_id=result[0]["affiliation"]["id"]
             nodes.append({
                     "id":idx,
                     "degree":0,
+                    "size":0,
+                    "label":result[0]["name"],
                     "affiliation":result[0]["affiliation"]["name"],
-                    "style":{
-                        "keyshape":{
-                        "size":0
-                        },
-                        "label":{
-                        "value":result[0]["name"]
-                        }
-                    }
-                })
-            aff_nodes.append({"id":result[0]["affiliation"]["id"],
-                    "degree":0,
-                    "style":{
-                        "keyshape":{
-                        "size":0
-                        },
-                        "label":{
-                        "value":result[0]["affiliation"]["name"]
-                        }
-                    }
                 })
             query="FOR v,e,p IN 1..1 ANY '"+arangoid+"' GRAPH coauthors RETURN {affiliation:v.affiliation,mongo_id:v.mongo_id,_id:v._id,name:v.name,weight:e.weight}" 
             for vertex in self.arangodb.AQLQuery(query,rawResults=True,batchSize=1):
                 arango_nodes.append(vertex["_id"])
                 
-                if vertex["affiliation"]:
-                    arango_mongo_aff_nodes[vertex["_id"]]=vertex["affiliation"]["id"]
-                    aff_node={"id":vertex["affiliation"]["id"],
-                            "degree":0,
-                            "style":{
-                                "keyshape":{
-                                "size":0
-                                },
-                                "label":{
-                                "value":vertex["affiliation"]["name"]
-                                }
-                            }
-                        }
-                    if not aff_node in aff_nodes:
-                        aff_nodes.append(aff_node)
-                    normal=(aff_id,vertex["affiliation"]["id"])
-                    rever=(vertex["affiliation"]["id"],aff_id)
-                    if not (normal in aff_edge_tuples or rever in aff_edge_tuples):
-                        aff_edge_tuples.append(normal)
-                        aff_edges.append({"coauthorships":vertex["weight"],
-                            "source":aff_id,
-                            "target":vertex["affiliation"]["id"],
-                            "style":{
-                                "keyshape":{
-                                "lineWidth":vertex["weight"]
-                                }
-                            }
-                        })
-                    else:
-                        idaff=-1
-                        if normal in aff_edge_tuples:
-                            idaff=aff_edge_tuples.index(normal)
-                        elif rever in aff_edge_tuples:
-                            idaff=aff_edge_tuples.index(rever)
-                        aff_edges[idaff]["coauthorships"]+=vertex["weight"]
-                #outside affiliation block
                 arango_mongo_nodes[vertex["_id"]]=vertex["mongo_id"]
                 aff_name=""
                 if vertex["affiliation"]:
@@ -362,15 +304,9 @@ class AuthorsApp(HunabkuPluginBase):
                 node={
                     "id":vertex["mongo_id"],
                     "degree":0,
+                    "size":0,
                     "affiliation":aff_name,
-                    "style":{
-                        "keyshape":{
-                        "size":0
-                        },
-                        "label":{
-                        "value":vertex["name"]
-                        }
-                    }
+                    "label":vertex["name"]
                 }
                 if not node in nodes:
                     nodes.append(node)
@@ -381,12 +317,10 @@ class AuthorsApp(HunabkuPluginBase):
                     edges.append({
                         "coauthorships":vertex["weight"],
                         "source":idx,
+                        "sourceName":result[0]["name"],
                         "target":vertex["mongo_id"],
-                        "style":{
-                            "keyshape":{
-                            "lineWidth":vertex["weight"]
-                            }
-                        }
+                        "targetName":vertex["name"],
+                        "size":vertex["weight"]
                     })
 
             for node in arango_nodes:
@@ -403,36 +337,11 @@ class AuthorsApp(HunabkuPluginBase):
                             edges.append({
                                 "coauthorships":res["weight"],
                                 "source":arango_mongo_nodes[res["_from"]],
+                                "sourceName":"",
                                 "target":arango_mongo_nodes[res["_to"]],
-                                "style":{
-                                    "keyshape":{
-                                    "lineWidth":res["weight"]
-                                    }
-                                }
+                                "targetName":"",
+                                "size":res["weight"]
                             })
-                        if res["_from"] in arango_mongo_aff_nodes.keys() and res["_to"] in arango_mongo_aff_nodes.keys():
-                            normal=(arango_mongo_aff_nodes[res["_from"]],arango_mongo_aff_nodes[res["_to"]])
-                            rever=(arango_mongo_aff_nodes[res["_to"]],arango_mongo_aff_nodes[res["_from"]])
-                            if normal in aff_edge_tuples or rever in aff_edge_tuples:
-                                idaff=-1
-                                if normal in aff_edge_tuples:
-                                    idaff=aff_edge_tuples.index(normal)
-                                elif rever in aff_edge_tuples:
-                                    idaff=aff_edge_tuples.index(rever)
-                                if idaff!=-1:
-                                    aff_edges[idaff]["coauthorships"]+=res["weight"]
-                            else:
-                                aff_edge_tuples.append(normal)
-                                #aff_edges.append({"from":arango_mongo_aff_nodes[res["_from"]],"to":arango_mongo_aff_nodes[res["_to"]],"coauthorships":res["weight"]})       
-                                aff_edges.append({"coauthorships":res["weight"],
-                                    "source":arango_mongo_aff_nodes[res["_from"]],
-                                    "target":arango_mongo_aff_nodes[res["_to"]],
-                                    "style":{
-                                        "keyshape":{
-                                        "lineWidth":res["weight"]
-                                        }
-                                    }
-                                })
             del(arango_nodes)
             del(arango_mongo_nodes)
             del(edge_tuples)
@@ -441,7 +350,7 @@ class AuthorsApp(HunabkuPluginBase):
             num_nodes=len(nodes)
             for edge in edges:
                 edge["coauthorships"]=edge["coauthorships"]
-                edge["style"]["keyshape"]["lineWidth"]=10*log(1+edge["coauthorships"]/total,2)
+                edge["size"]=10*log(1+edge["coauthorships"]/total,2)
                 if edge["source"] in degrees.keys():
                     degrees[edge["source"]]+=1
                 else:
@@ -452,28 +361,9 @@ class AuthorsApp(HunabkuPluginBase):
                     degrees[edge["target"]]=1
             for node in nodes:
                 if node["id"] in degrees.keys():
-                    node["style"]["keyshape"]["size"]=50*log(1+degrees[node["id"]]/(num_nodes-1),2)
-                    node["degree"]=degrees[node["id"]]
-            total=max([e["coauthorships"] for e in aff_edges])  if len(edges)>0 else 1
-            degrees={}
-            num_nodes=len(aff_nodes)
-            for edge in aff_edges:
-                edge["coauthorships"]=edge["coauthorships"]
-                edge["style"]["keyshape"]["lineWidth"]=10*log(1+edge["coauthorships"]/total,2)
-                if edge["source"] in degrees.keys():
-                    degrees[edge["source"]]+=1
-                else:
-                    degrees[edge["source"]]=1
-                if edge["target"] in degrees.keys():
-                    degrees[edge["target"]]+=1
-                else:
-                    degrees[edge["target"]]=1
-            for node in aff_nodes:
-                if node["id"] in degrees.keys():
-                    node["style"]["keyshape"]["size"]=50*log(1+degrees[node["id"]]/(num_nodes-1),2)
+                    node["size"]=50*log(1+degrees[node["id"]]/(num_nodes-1),2)
                     node["degree"]=degrees[node["id"]]
             entry["coauthors_network"]={"nodes":nodes,"edges":edges}
-            entry["institution_network"]={"nodes":aff_nodes,"edges":aff_edges}
         else:
             au=self.colav_db["authors"].find_one({"_id":idx})
             aff=""
@@ -485,32 +375,10 @@ class AuthorsApp(HunabkuPluginBase):
             entry["coauthors_network"]={"nodes":[{
                 "id":idx,
                 "degree":0,
+                "size":10,
+                "label":au["full_name"] if aff!="" else "",
                 "affiliation":aff["name"] if aff!="" else "",
-                "style":{
-                    "keyshape":{
-                        "size":10
-                    },
-                    "label":{
-                        "value":au["full_name"] if aff!="" else ""
-                    }
-                }
             }],"edges":[]}
-            if aff:
-                entry["institution_network"]={"nodes":[{
-                "id":aff["id"],
-                "degree":0,
-                "style":{
-                    "keyshape":{
-                        "size":10
-                    },
-                    "label":{
-                        "value":aff["name"] if "name" in aff.keys() else ""
-                    }
-                }
-                }],"edges":[]}
-            else:
-                entry["institution_network"]={"nodes":[],"edges":[]}
-
 
 
         return {"data":entry}
