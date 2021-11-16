@@ -35,7 +35,6 @@ class GroupsApp(HunabkuPluginBase):
                 "type":group["type"],
                 "abbreviations":"",
                 "external_urls":group["external_urls"],
-                "authors":[],
                 "institution":[]
             }
             if len(group["abbreviations"])>0:
@@ -50,12 +49,6 @@ class GroupsApp(HunabkuPluginBase):
                 if inst:
                     entry["institution"]=[{"name":inst["name"],"id":inst_id,"logo":inst["logo_url"]}]
 
-            for author in self.colav_db['authors'].find({"branches.id":group["_id"]}):
-                author_entry={
-                    "full_name":author["full_name"],
-                    "id":str(author["_id"])
-                }
-                entry["authors"].append(author_entry)
             return {"data": entry, "filters": filters }
         else:
             return None
@@ -124,7 +117,7 @@ class GroupsApp(HunabkuPluginBase):
                 "_id":"$citers.year_published","count":{"$sum":1}}
             },
             {"$sort":{
-                "_id":-1
+                "_id":1
             }}
         ])
 
@@ -162,7 +155,7 @@ class GroupsApp(HunabkuPluginBase):
     
         return {"data": entry}
 
-    def get_authors(self,idx=None):
+    def get_authors(self,idx=None,page=1,max_results=100):
         if idx:
 
             pipeline=[
@@ -175,25 +168,69 @@ class GroupsApp(HunabkuPluginBase):
                 {"$match":{"authors.affiliations.branches.id":ObjectId(idx)}},
                 {"$group":{"_id":"$authors.id","papers_count":{"$sum":1},"citations_count":{"$sum":"$citations_count"},"author":{"$first":"$authors"}}},
                 {"$sort":{"citations_count":-1}},
-                {"$project":{"_id":1,"author.full_name":1,"author.affiliations.name":1,"papers_count":1,"citations_count":1}},
+                {"$project":{"_id":1,"author.full_name":1,"author.affiliations.name":1,"author.affiliations.id":1,
+                    "author.affiliations.branches.name":1,"author.affiliations.branches.type":1,"author.affiliations.branches.id":1,
+                    "papers_count":1,"citations_count":1}}
+
 
 
             ])
+
+
+            pipeline_count = pipeline +[{"$count":"total_results"}]
+
+            cursor = self.colav_db["documents"].aggregate(pipeline_count)
+
+            total_results = list(cursor)[0]["total_results"]
+
+
+            if not page:
+                page=1
+            else:
+                try:
+                    page=int(page)
+                except:
+                    print("Could not convert end page to int")
+                    return None
+            if not max_results:
+                max_results=100
+            else:
+                try:
+                    max_results=int(max_results)
+                except:
+                    print("Could not convert end max to int")
+                    return None
+
+            
+            skip = (max_results*(page-1))
+
+            pipeline.extend([{"$skip":skip},{"$limit":max_results}])
+
 
             result= self.colav_db["documents"].aggregate(pipeline)
         
             entry = []
 
             for reg in result:
+
+                for i in range(len(reg["author"]["affiliations"][0]["branches"])):    
+                    if reg["author"]["affiliations"][0]["branches"][i]["type"]=="group":
+                        group_name = reg["author"]["affiliations"][0]["branches"][i]["name"]
+                        group_id =   reg["author"]["affiliations"][0]["branches"][i]["id"]
+                    
+
+        
                 entry.append({
                     "id":reg["_id"],
                     "name":reg["author"]["full_name"],
                     "papers_count":reg["papers_count"],
                     "citations_count":reg["citations_count"],
-                    "affiliation":reg["author"]["affiliations"][0]["name"]
+                    "affiliation":{"institution":{"name":reg["author"]["affiliations"][0]["name"], 
+                                        "id":reg["author"]["affiliations"][0]["id"]},
+                                   "group":{"name":group_name, "id":group_id}}
                 })
             
-        return entry
+        return {"total":total_results,"page":page,"count":len(entry),"data":entry}
 
 
 
@@ -943,8 +980,11 @@ class GroupsApp(HunabkuPluginBase):
 
         elif data=="authors":
             idx = self.request.args.get('id')
+            max_results=self.request.args.get('max')
+            page=self.request.args.get('page')
 
             authors = self.get_authors(idx)
+
 
             if authors:
                 response = self.app.response_class(
