@@ -156,7 +156,9 @@ class InstitutionsApp(HunabkuPluginBase):
                 {"$match":{"authors.affiliations.id":ObjectId(idx)}},
                 {"$group":{"_id":"$authors.id","papers_count":{"$sum":1},"citations_count":{"$sum":"$citations_count"},"author":{"$first":"$authors"}}},
                 {"$sort":{"citations_count":-1}},
-                {"$project":{"_id":1,"author.full_name":1,"author.affiliations.name":1,"papers_count":1,"citations_count":1}}
+                {"$project":{"_id":1,"author.full_name":1,"author.affiliations.name":1,"author.affiliations.id":1,
+                    "author.affiliations.branches.name":1,"author.affiliations.branches.type":1,"author.affiliations.branches.id":1,
+                    "papers_count":1,"citations_count":1}}
 
 
 
@@ -198,15 +200,32 @@ class InstitutionsApp(HunabkuPluginBase):
             entry = []
 
             for reg in result:
+
+                if "branches" in reg["author"]["affiliations"][0]:
+
+
+                    for i in range(len(reg["author"]["affiliations"][0]["branches"])):    
+                        if reg["author"]["affiliations"][0]["branches"][i]["type"]=="group":
+                            group_name = reg["author"]["affiliations"][0]["branches"][i]["name"]
+                            group_id =   reg["author"]["affiliations"][0]["branches"][i]["id"]
+
+                else:
+                    group_name = ""
+                    gropu_id = ""    
+
+        
                 entry.append({
                     "id":reg["_id"],
                     "name":reg["author"]["full_name"],
                     "papers_count":reg["papers_count"],
                     "citations_count":reg["citations_count"],
-                    "affiliation":{"name":reg["author"]["affiliations"][0]["name"], "id":ObjectId(idx)}
+                    "affiliation":{"institution":{"name":reg["author"]["affiliations"][0]["name"], 
+                                        "id":reg["author"]["affiliations"][0]["id"]},
+                                   "group":{"name":group_name, "id":group_id}}
                 })
             
         return {"total":total_results,"page":page,"count":len(entry),"data":entry}
+
 
 
     def get_coauthors(self,idx=None,start_year=None,end_year=None):
