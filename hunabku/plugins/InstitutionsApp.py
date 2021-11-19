@@ -154,13 +154,12 @@ class InstitutionsApp(HunabkuPluginBase):
 
                 {"$unwind":"$authors"},
                 {"$match":{"authors.affiliations.id":ObjectId(idx)}},
+                {"$project":{"authors":1,"citations_count":1}},
                 {"$group":{"_id":"$authors.id","papers_count":{"$sum":1},"citations_count":{"$sum":"$citations_count"},"author":{"$first":"$authors"}}},
                 {"$sort":{"citations_count":-1}},
-                {"$project":{"_id":1,"author.full_name":1,"author.affiliations.name":1,"author.affiliations.id":1,
+                {"$project":{"author.id":1,"author.full_name":1,"author.affiliations.name":1,"author.affiliations.id":1,
                     "author.affiliations.branches.name":1,"author.affiliations.branches.type":1,"author.affiliations.branches.id":1,
                     "papers_count":1,"citations_count":1}}
-
-
 
             ])
 
@@ -208,10 +207,12 @@ class InstitutionsApp(HunabkuPluginBase):
                         if reg["author"]["affiliations"][0]["branches"][i]["type"]=="group":
                             group_name = reg["author"]["affiliations"][0]["branches"][i]["name"]
                             group_id =   reg["author"]["affiliations"][0]["branches"][i]["id"]
+                    
+   
 
                 else:
                     group_name = ""
-                    gropu_id = ""    
+                    group_id = ""    
 
         
                 entry.append({
@@ -273,6 +274,8 @@ class InstitutionsApp(HunabkuPluginBase):
             {"$unwind":"$affiliation"}
         ])
 
+        
+
         entry={
             "institutions":[],
             "geo":[],
@@ -319,9 +322,59 @@ class InstitutionsApp(HunabkuPluginBase):
             item["log_count"]=log(item["count"])
         entry["geo"]=countries
 
+    def get_groups(self,idx=None,page=1,max_results=100):
+
+        pipeline=[
+            {"$match":{"type":"group","relations.id":ObjectId(idx)}},
+            {"$project":{"_id":1,"name":1}},
+            {"$lookup":{"from":"documents","localField":"_id","foreignField":"authors.affiliations.branches.id","as":"papers"}},
+            {"$project":{"papers.citations_count":1,"name":1}},
+            {"$unwind":"$papers"},
+            {"$group":{"_id":"$_id","citations":{"$sum":"$papers.citations_count"},"name":{"$first":"$name"}}},
+            {"$sort":{"citations":-1}}
+        ]
+        
+        pipeline_count = pipeline +[{"$count":"total_results"}]
+
+        cursor = self.colav_db["branches"].aggregate(pipeline_count)
+
+        
+        total_results = list(cursor)[0]["total_results"]
+        print("Total results =",total_results)
 
 
-        return {"data":entry}
+        if not page:
+            page=1
+        else:
+            try:
+                page=int(page)
+            except:
+                print("Could not convert end page to int")
+                return None
+        if not max_results:
+            max_results=100
+        else:
+            try:
+                max_results=int(max_results)
+            except:
+                print("Could not convert end max to int")
+                return None
+
+        
+        skip = (max_results*(page-1))
+
+        pipeline.extend([{"$skip":skip},{"$limit":max_results}])
+
+
+        entry = []
+
+        for reg in  self.colav_db["branches"].aggregate(pipeline):
+            entry.append({"name":reg["name"],"id":reg["_id"],"citations":reg["citations"]})
+
+
+
+        return {"total":total_results,"page":page,"count":len(entry),"data":entry}
+
 
     def get_venn(self,venn_query):
         venn_source={
@@ -1353,6 +1406,7 @@ class InstitutionsApp(HunabkuPluginBase):
                 status=204,
                 mimetype='application/json'
                 )
+
         elif data=="authors":
             idx = self.request.args.get('id')
             max_results=self.request.args.get('max')
@@ -1381,6 +1435,25 @@ class InstitutionsApp(HunabkuPluginBase):
             if coauthors:
                 response = self.app.response_class(
                 response=self.json.dumps(coauthors),
+                status=200,
+                mimetype='application/json'
+                )
+            else:
+                response = self.app.response_class(
+                response=self.json.dumps({"status":"Request returned empty"}),
+                status=204,
+                mimetype='application/json'
+                )
+
+        elif data=="groups":
+            idx = self.request.args.get('id')
+            max_results=self.request.args.get('max')
+            page=self.request.args.get('page')
+
+            groups=self.get_groups(idx,page,max_results)
+            if groups:
+                response = self.app.response_class(
+                response=self.json.dumps(groups),
                 status=200,
                 mimetype='application/json'
                 )
