@@ -229,7 +229,8 @@ class InstitutionsApp(HunabkuPluginBase):
 
 
 
-    def get_coauthors(self,idx=None,start_year=None,end_year=None):
+    def get_coauthors(self,idx=None,start_year=None,end_year=None,page=1,max_results=100):
+        
         if start_year:
             try:
                 start_year=int(start_year)
@@ -266,6 +267,7 @@ class InstitutionsApp(HunabkuPluginBase):
         pipeline.extend([
             {"$unwind":"$authors"},
             {"$unwind":"$authors.affiliations"},
+            {"$match":{"authors.affiliations.id":{"$ne":ObjectId(idx)}}},
             {"$group":{"_id":"$authors.affiliations.id","count":{"$sum":1}}},
             {"$sort":{"count":-1}},
             {"$unwind":"$_id"},
@@ -274,7 +276,34 @@ class InstitutionsApp(HunabkuPluginBase):
             {"$unwind":"$affiliation"}
         ])
 
+        pipeline_count = pipeline +[{"$count":"total_results"}]
+
+        cursor = self.colav_db["documents"].aggregate(pipeline_count)
+
+        total_results = list(cursor)[0]["total_results"]
+
+        if not page:
+            page=1
+        else:
+            try:
+                page=int(page)
+            except:
+                print("Could not convert end page to int")
+                return None
+        if not max_results:
+            max_results=100
+        else:
+            try:
+                max_results=int(max_results)
+            except:
+                print("Could not convert end max to int")
+                return None
+
         
+        skip = (max_results*(page-1))
+
+        pipeline.extend([{"$skip":skip},{"$limit":max_results}])
+
 
         entry={
             "institutions":[],
@@ -283,7 +312,7 @@ class InstitutionsApp(HunabkuPluginBase):
         }
  
         entry["institutions"]=[
-            {"name":reg["affiliation"]["name"],"id":reg["_id"],"count":reg["count"]} for reg in self.colav_db["documents"].aggregate(pipeline) if str(reg["_id"]) != idx
+            {"name":reg["affiliation"]["name"],"id":reg["_id"],"count":reg["count"]} for reg in self.colav_db["documents"].aggregate(pipeline) 
         ]
     
         countries=[]
@@ -322,6 +351,10 @@ class InstitutionsApp(HunabkuPluginBase):
             item["log_count"]=log(item["count"])
         entry["geo"]=countries
 
+
+        return {"total":total_results,"page":page,"count":len(entry["institutions"]),"data":entry}
+
+
     def get_groups(self,idx=None,page=1,max_results=100):
 
         pipeline=[
@@ -340,7 +373,7 @@ class InstitutionsApp(HunabkuPluginBase):
 
         
         total_results = list(cursor)[0]["total_results"]
-        print("Total results =",total_results)
+        #print("Total results =",total_results)
 
 
         if not page:
@@ -1430,8 +1463,10 @@ class InstitutionsApp(HunabkuPluginBase):
             idx = self.request.args.get('id')
             start_year=self.request.args.get('start_year')
             end_year=self.request.args.get('end_year')
+            max_results=self.request.args.get('max')
+            page=self.request.args.get('page')
 
-            coauthors=self.get_coauthors(idx,start_year,end_year)
+            coauthors=self.get_coauthors(idx,start_year,end_year,page,max_results)
             if coauthors:
                 response = self.app.response_class(
                 response=self.json.dumps(coauthors),
