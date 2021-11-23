@@ -256,9 +256,56 @@ class SearchApp(HunabkuPluginBase):
         else:
             return None
 
-    def search_documents(self,keywords="",tipo=None):
+    def search_info(self,keywords=""):
+
         initial_year=0
-        final_year=0    
+        final_year = 0
+
+        if keywords: 
+            result=self.colav_db['documents'].find({"$text":{"$search":keywords}},{"year_published":1}).sort([("year_published",ASCENDING)]).limit(1)
+            if result:
+                result=list(result)
+                print(result)
+                if len(result)>0:
+                    initial_year=result[0]["year_published"]
+            result=self.colav_db['documents'].find({"$text":{"$search":keywords}},{"year_published":1}).sort([("year_published",DESCENDING)]).limit(1)
+            if result:
+                result=list(result)
+                print(result)
+                if len(result)>0:
+                    final_year=result[0]["year_published"]
+                
+
+            filters={
+                "start_year":initial_year,
+                "end_year":final_year
+            }
+
+            print("initial_year",initial_year)
+            print("final_year",final_year)
+
+            return {"filters": filters}
+        else:
+            return None
+
+    def search_documents(self,keywords="",start_year=None,end_year=None):
+        open_access=[]
+
+       
+        
+        if start_year:
+            try:
+                start_year=int(start_year)
+            except:
+                print("Could not convert start year to int")
+                return None
+        if end_year:
+            try:
+                end_year=int(end_year)
+            except:
+                print("Could not convert end year to int")
+                return None 
+
 
         if keywords:
             result=self.colav_db['documents'].find({"$text":{"$search":keywords}},{"year_published":1}).sort([("year_published",ASCENDING)]).limit(1)
@@ -272,15 +319,53 @@ class SearchApp(HunabkuPluginBase):
                 if len(result)>0:
                     final_year=result[0]["year_published"]
 
+
+                
+
+            if start_year and not end_year:
+                venn_query={"year_published":{"$gte":start_year},"$text":{"$search":keywords}}
+                open_access.extend([
+                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$gte":start_year},"$text":{"$search":keywords}})  },
+                    {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$gte":start_year},"$text":{"$search":keywords}})   },
+                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$gte":start_year},"$text":{"$search":keywords}}) },
+                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$gte":start_year},"$text":{"$search":keywords}}) },
+                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$gte":start_year},"$text":{"$search":keywords}}) }
+                ])
+            elif end_year and not start_year:
+                venn_query={"year_published":{"$lte":end_year},"$text":{"$search":keywords}}
+                open_access.extend([
+                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$lte":end_year},"$text":{"$search":keywords}})  },
+                    {"type":"gold"  ,"value": self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$lte":end_year},"$text":{"$search":keywords}})  },
+                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$lte":end_year},"$text":{"$search":keywords}}) },
+                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$lte":end_year},"$text":{"$search":keywords}}) },
+                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$lte":end_year},"$text":{"$search":keywords}}) }
+                ])
+            elif start_year and end_year:
+                venn_query={"year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}}
+                open_access.extend([
+                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}}) },
+                    {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}})  },
+                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}})},
+                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}})},
+                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}})}
+                ])
+            else:
+                venn_query={"$text":{"$search":keywords}}
+                open_access.extend([
+                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","$text":{"$search":keywords}}) },
+                    {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold","$text":{"$search":keywords}})  },
+                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","$text":{"$search":keywords}})},
+                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","$text":{"$search":keywords}})},
+                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","$text":{"$search":keywords}})}
+                ])
+
+
             tipos = self.colav_db['documents'].distinct("publication_type.type",{"$text":{"$search":keywords}})
 
-        return{
-            "types":tipos,
-            "filters":{
-                "start_year":initial_year,
-                "end_year":final_year
-            }
-
+        return {
+            "open_access":open_access,
+            "venn_source":self.get_venn(venn_query),
+            "types":tipos
         }
                     
     def search_documents_by_type(self,keywords="",max_results=100,page=1,start_year=None,end_year=None,sort="citations",direction="descending",tipo=None):
@@ -389,7 +474,92 @@ class SearchApp(HunabkuPluginBase):
                 }
         else:
             return None
-        
+
+
+    def get_venn(self,venn_query):
+        venn_source={
+            "scholar":0,"lens":0,"wos":0,"scopus":0,
+            "scholar_lens":0,"scholar_wos":0,"scholar_scopus":0,"lens_wos":0,"lens_scopus":0,"wos_scopus":0,
+            "scholar_lens_wos":0,"scholar_wos_scopus":0,"scholar_lens_scopus":0,"lens_wos_scopus":0,
+            "scholar_lens_wos_scopus":0
+        }
+        venn_query["$and"]=[{"source_checked.source":"scholar"},
+                {"source_checked.source":{"$ne":"lens"}},
+                {"source_checked.source":{"$ne":"wos"}},
+                {"source_checked.source":{"$ne":"scopus"}}]
+        venn_source["scholar"]=self.colav_db['documents'].count_documents(venn_query)
+        venn_query["$and"]=[{"source_checked.source":{"$ne":"scholar"}},
+                {"source_checked.source":"lens"},
+                {"source_checked.source":{"$ne":"wos"}},
+                {"source_checked.source":{"$ne":"scopus"}}]
+        venn_source["lens"]=self.colav_db['documents'].count_documents(venn_query)
+        venn_query["$and"]=[{"source_checked.source":{"$ne":"scholar"}},
+                {"source_checked.source":{"$ne":"lens"}},
+                {"source_checked.source":"wos"},
+                {"source_checked.source":{"$ne":"scopus"}}]
+        venn_source["wos"]=self.colav_db['documents'].count_documents(venn_query)
+        venn_query["$and"]=[{"source_checked.source":{"$ne":"scholar"}},
+                {"source_checked.source":{"$ne":"lens"}},
+                {"source_checked.source":{"$ne":"wos"}},
+                {"source_checked.source":"scopus"}]
+        venn_source["scopus"]=self.colav_db['documents'].count_documents(venn_query)
+        venn_query["$and"]=[{"source_checked.source":"scholar"},
+                {"source_checked.source":"lens"},
+                {"source_checked.source":{"$ne":"wos"}},
+                {"source_checked.source":{"$ne":"scopus"}}]
+        venn_source["scholar_lens"]=self.colav_db['documents'].count_documents(venn_query)
+        venn_query["$and"]=[{"source_checked.source":"scholar"},
+                {"source_checked.source":{"$ne":"lens"}},
+                {"source_checked.source":"wos"},
+                {"source_checked.source":{"$ne":"scopus"}}]
+        venn_source["scholar_wos"]=self.colav_db['documents'].count_documents(venn_query)
+        venn_query["$and"]=[{"source_checked.source":"scholar"},
+                {"source_checked.source":{"$ne":"lens"}},
+                {"source_checked.source":{"$ne":"wos"}},
+                {"source_checked.source":"scopus"}]
+        venn_source["scholar_scopus"]=self.colav_db['documents'].count_documents(venn_query)
+        venn_query["$and"]=[{"source_checked.source":{"$ne":"scholar"}},
+                {"source_checked.source":"lens"},
+                {"source_checked.source":"wos"},
+                {"source_checked.source":{"$ne":"scopus"}}]
+        venn_source["lens_wos"]=self.colav_db['documents'].count_documents(venn_query)
+        venn_query["$and"]=[{"source_checked.source":{"$ne":"scholar"}},
+                {"source_checked.source":"lens"},
+                {"source_checked.source":{"$ne":"wos"}},
+                {"source_checked.source":"scopus"}]
+        venn_source["lens_scopus"]=self.colav_db['documents'].count_documents(venn_query)
+        venn_query["$and"]=[{"source_checked.source":{"$ne":"scholar"}},
+                {"source_checked.source":{"$ne":"lens"}},
+                {"source_checked.source":"wos"},
+                {"source_checked.source":"scopus"}]
+        venn_source["wos_scopus"]=self.colav_db['documents'].count_documents(venn_query)
+        venn_query["$and"]=[{"source_checked.source":"scholar"},
+                {"source_checked.source":"lens"},
+                {"source_checked.source":"wos"},
+                {"source_checked.source":{"$ne":"scopus"}}]
+        venn_source["scholar_lens_wos"]=self.colav_db['documents'].count_documents(venn_query)
+        venn_query["$and"]=[{"source_checked.source":"scholar"},
+                {"source_checked.source":{"$ne":"lens"}},
+                {"source_checked.source":"wos"},
+                {"source_checked.source":"scopus"}]
+        venn_source["scholar_wos_scopus"]=self.colav_db['documents'].count_documents(venn_query)
+        venn_query["$and"]=[{"source_checked.source":"scholar"},
+                {"source_checked.source":"lens"},
+                {"source_checked.source":{"$ne":"wos"}},
+                {"source_checked.source":"scopus"}]
+        venn_source["scholar_lens_scopus"]=self.colav_db['documents'].count_documents(venn_query)
+        venn_query["$and"]=[{"source_checked.source":{"$ne":"scholar"}},
+                {"source_checked.source":"lens"},
+                {"source_checked.source":"wos"},
+                {"source_checked.source":"scopus"}]
+        venn_source["lens_wos_scopus"]=self.colav_db['documents'].count_documents(venn_query)
+        venn_query["$and"]=[{"source_checked.source":"scholar"},
+                {"source_checked.source":"lens"},
+                {"source_checked.source":"wos"},
+                {"source_checked.source":"scopus"}]
+        venn_source["scholar_lens_wos_scopus"]=self.colav_db['documents'].count_documents(venn_query)
+
+        return venn_source        
 
     @endpoint('/app/search', methods=['GET'])
     def app_search(self):
@@ -522,16 +692,11 @@ class SearchApp(HunabkuPluginBase):
         data = self.request.args.get('data')
         tipo = self.request.args.get('type')
 
-        if data=="faculties":
-            max_results=self.request.args.get('max') if 'max' in self.request.args else 100
-            page=self.request.args.get('page') if 'page' in self.request.args else 1
+        if data=="info":
             keywords = self.request.args.get('keywords') if "keywords" in self.request.args else ""
-            result=self.search_branch("faculty",keywords=keywords,max_results=max_results,page=page)
-        elif data=="departments":
-            max_results=self.request.args.get('max') if 'max' in self.request.args else 100
-            page=self.request.args.get('page') if 'page' in self.request.args else 1
-            keywords = self.request.args.get('keywords') if "keywords" in self.request.args else ""
-            result=self.search_branch("department",keywords=keywords,max_results=max_results,page=page)
+            result = self.search_info(keywords=keywords)
+
+
         elif data=="groups":
             max_results=self.request.args.get('max') if 'max' in self.request.args else 100
             page=self.request.args.get('page') if 'page' in self.request.args else 1
@@ -558,7 +723,7 @@ class SearchApp(HunabkuPluginBase):
             end_year=self.request.args.get('end_year')
             sort=self.request.args.get('sort')
             if tipo == None:
-                result=self.search_documents(keywords=keywords)
+                result=self.search_documents(keywords=keywords,start_year=start_year,end_year=end_year)
             else:
                 result=self.search_documents_by_type(keywords=keywords,max_results=max_results,
                     page=page,start_year=start_year,end_year=end_year,sort=sort,direction="descending",tipo=tipo)
