@@ -163,12 +163,7 @@ class InstitutionsApp(HunabkuPluginBase):
 
             ])
 
-
-            pipeline_count = pipeline +[{"$count":"total_results"}]
-
-            cursor = self.colav_db["documents"].aggregate(pipeline_count)
-
-            total_results = list(cursor)[0]["total_results"]
+            total_results = self.colav_db["authors"].count_documents({"affiliations.id":ObjectId(idx)})
 
 
             if not page:
@@ -366,14 +361,9 @@ class InstitutionsApp(HunabkuPluginBase):
             {"$group":{"_id":"$_id","citations":{"$sum":"$papers.citations_count"},"name":{"$first":"$name"}}},
             {"$sort":{"citations":-1}}
         ]
-        
-        pipeline_count = pipeline +[{"$count":"total_results"}]
-
-        cursor = self.colav_db["branches"].aggregate(pipeline_count)
 
         
-        total_results = list(cursor)[0]["total_results"]
-        #print("Total results =",total_results)
+        total_results = self.colav_db["branches"].count_documents({"type":"group","relations.id":ObjectId(idx)})
 
 
         if not page:
