@@ -177,11 +177,7 @@ class GroupsApp(HunabkuPluginBase):
             ])
 
 
-            pipeline_count = pipeline +[{"$count":"total_results"}]
-
-            cursor = self.colav_db["documents"].aggregate(pipeline_count)
-
-            total_results = list(cursor)[0]["total_results"]
+            total_results = self.colav_db["authors"].count_documents({"affiliations.id":ObjectId(idx)})
 
 
             if not page:
@@ -212,12 +208,14 @@ class GroupsApp(HunabkuPluginBase):
             entry = []
 
             for reg in result:
-
-                for i in range(len(reg["author"]["affiliations"][0]["branches"])):    
-                    if reg["author"]["affiliations"][0]["branches"][i]["type"]=="group":
-                        group_name = reg["author"]["affiliations"][0]["branches"][i]["name"]
-                        group_id =   reg["author"]["affiliations"][0]["branches"][i]["id"]
-                    
+                if "affiliations" in reg["author"].keys():
+                    if len(reg["author"]["affiliations"])>0:
+                        if "branches" in reg["author"]["affiliations"][0].keys():
+                            for i in range(len(reg["author"]["affiliations"][0]["branches"])):    
+                                if reg["author"]["affiliations"][0]["branches"][i]["type"]=="group":
+                                    group_name = reg["author"]["affiliations"][0]["branches"][i]["name"]
+                                    group_id =   reg["author"]["affiliations"][0]["branches"][i]["id"]
+                        
 
         
                 entry.append({
