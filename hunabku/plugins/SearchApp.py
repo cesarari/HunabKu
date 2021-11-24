@@ -307,20 +307,8 @@ class SearchApp(HunabkuPluginBase):
                 return None 
 
 
-        if keywords:
-            result=self.colav_db['documents'].find({"$text":{"$search":keywords}},{"year_published":1}).sort([("year_published",ASCENDING)]).limit(1)
-            if result:
-                result=list(result)
-                if len(result)>0:
-                    initial_year=result[0]["year_published"]
-            result=self.colav_db['documents'].find({"$text":{"$search":keywords}},{"year_published":1}).sort([("year_published",DESCENDING)]).limit(1)
-            if result:
-                result=list(result)
-                if len(result)>0:
-                    final_year=result[0]["year_published"]
 
-
-                
+        if keywords:        
 
             if start_year and not end_year:
                 venn_query={"year_published":{"$gte":start_year},"$text":{"$search":keywords}}
@@ -343,7 +331,7 @@ class SearchApp(HunabkuPluginBase):
             elif start_year and end_year:
                 venn_query={"year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}}
                 open_access.extend([
-                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}}) },
+                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords} }) },
                     {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}})  },
                     {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}})},
                     {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}})},
@@ -361,6 +349,47 @@ class SearchApp(HunabkuPluginBase):
 
 
             tipos = self.colav_db['documents'].distinct("publication_type.type",{"$text":{"$search":keywords}})
+
+        else:
+            if start_year and not end_year:
+                venn_query={"year_published":{"$gte":start_year}}
+                open_access.extend([
+                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$gte":start_year} })  },
+                    {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$gte":start_year} })   },
+                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$gte":start_year} }) },
+                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$gte":start_year} }) },
+                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$gte":start_year} }) }
+                ])
+            elif end_year and not start_year:
+                venn_query={"year_published":{"$lte":end_year} }
+                open_access.extend([
+                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$lte":end_year} })  },
+                    {"type":"gold"  ,"value": self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$lte":end_year} })  },
+                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$lte":end_year} }) },
+                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$lte":end_year} }) },
+                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$lte":end_year} }) }
+                ])
+            elif start_year and end_year:
+                venn_query={"year_published":{"$gte":start_year,"$lte":end_year} }
+                open_access.extend([
+                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$gte":start_year,"$lte":end_year} }) },
+                    {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$gte":start_year,"$lte":end_year} })  },
+                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$gte":start_year,"$lte":end_year} })},
+                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$gte":start_year,"$lte":end_year} })},
+                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$gte":start_year,"$lte":end_year} })}
+                ])
+            else:
+                venn_query={}
+                open_access.extend([
+                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green" }) },
+                    {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold" })  },
+                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze" })},
+                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed" })},
+                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid" })}
+                ])
+
+
+            tipos = self.colav_db['documents'].distinct("publication_type.type")
 
         return {
             "open_access":open_access,
@@ -385,13 +414,12 @@ class SearchApp(HunabkuPluginBase):
                 return None
 
         if keywords:
-            cursor=self.colav_db['documents'].find({"$text":{"$search":keywords}})
-            country_pipeline=[{"$match":{"$text":{"$search":keywords}}}]
+            cursor=self.colav_db['documents'].find({"$text":{"$search":keywords},"publication_type.type":tipo})
             aff_pipeline=[
-                {"$match":{"$text":{"$search":keywords}}}
+                {"$match":{"$text":{"$search":keywords},"publication_type.type":tipo}}
             ]
         else:
-            cursor=self.colav_db['documents'].find()
+            cursor=self.colav_db['documents'].find({"publication_type.type":tipo})
             aff_pipeline=[]
 
         aff_pipeline.extend([

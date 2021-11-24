@@ -32,22 +32,21 @@ class AuthorsApp(HunabkuPluginBase):
         author = self.colav_db['authors'].find_one({"_id":ObjectId(idx)})
         if author:
             entry={"id":author["_id"],
-                "full_name":author["full_name"],
-                "affiliation":[],
-                "country":"",
-                "country_code":"",
-                "group":{},
+                "name":author["full_name"],
+                "affiliation":{"institution":{"name":"","id":""},"group":{"name":"","id":""}},
                 "external_urls":[],
             }
             if "affiliations" in author.keys():
                 if len(author["affiliations"]):
-                    entry["affiliation"]=author["affiliations"][-1]
-            if entry["affiliation"]:
-                inst_db=self.colav_db["institutions"].find_one({"_id":ObjectId(entry["affiliation"]["id"])})
-                if inst_db:
-                    entry["country_code"]=inst_db["addresses"][0]["country_code"]
-                    entry["country"]=inst_db["addresses"][0]["country"]
-                    entry["logo"]=inst_db["logo_url"]
+                    entry["affiliation"]["institution"]["id"]=author["affiliations"][-1]["id"]
+                    entry["affiliation"]["institution"]["name"]=author["affiliations"][-1]["name"]
+
+            if "branches" in author.keys():
+                for i in range(len(author["branches"])):
+                    if author["branches"][i]["type"]=="group":
+                        entry["affiliation"]["group"]["id"]  =author["branches"][i]["id"]
+                        entry["affiliation"]["group"]["name"]=author["branches"][i]["name"]
+
             sources=[]
             for ext in author["external_ids"]:
 
@@ -73,9 +72,9 @@ class AuthorsApp(HunabkuPluginBase):
                         "url":"https://orcid.org/"+ext["value"]})
 
 
-            for branch in author["branches"]:
-                if branch["type"]=="group":
-                    entry["group"]=branch
+                        
+                        
+
 
             return {"data": entry, "filters": filters }
         else:
@@ -470,8 +469,6 @@ class AuthorsApp(HunabkuPluginBase):
 
     def get_production(self,idx=None,max_results=100,page=1,start_year=None,end_year=None,sort=None,direction=None):
         papers=[]
-        initial_year=9999
-        final_year=0
         total=0
         open_access=[]
         
@@ -602,8 +599,17 @@ class AuthorsApp(HunabkuPluginBase):
                 authors.append(au_entry)
             entry["authors"]=authors
             papers.append(entry)
-        if initial_year==9999:
-            initial_year=0
+
+        tipos = self.colav_db['documents'].distinct("publication_type.type",{"authors.id":ObjectId(idx)})
+
+        return {
+            "open_access":open_access,
+            "venn_source":self.get_venn(venn_query),
+            "types":tipos
+
+            }
+            
+        """
         return {
             "data":papers,
             "count":len(papers),
@@ -613,6 +619,113 @@ class AuthorsApp(HunabkuPluginBase):
             "open_access":open_access,
 
         }
+        """
+    def get_production_by_type(self,idx=None,max_results=100,page=1,start_year=None,end_year=None,sort=None,direction=None,tipo=None):
+        total = 0
+
+        if start_year:
+            try:
+                start_year=int(start_year)
+            except:
+                print("Could not convert start year to int")
+                return None
+        if end_year:
+            try:
+                end_year=int(end_year)
+            except:
+                print("Could not convert end year to int")
+                return None
+
+        if idx:
+
+            if start_year and not end_year:
+                cursor=self.colav_db['documents'].find({"year_published":{"$gte":start_year},"authors.id":ObjectId(idx),
+                    "publication_type.type":tipo})
+
+            elif end_year and not start_year:
+                cursor=self.colav_db['documents'].find({"year_published":{"$lte":end_year},"authors.id":ObjectId(idx),
+                    "publication_type.type":tipo})
+
+            elif start_year and end_year:
+                cursor=self.colav_db['documents'].find({"year_published":{"$gte":start_year,"$lte":end_year},
+                    "authors.id":ObjectId(idx), "publication_type.type":tipo})
+
+            else:
+                cursor=self.colav_db['documents'].find({"authors.id":ObjectId(idx),"publication_type.type":tipo})
+
+
+        
+        total=cursor.count()
+        if not page:
+            page=1
+        else:
+            try:
+                page=int(page)
+            except:
+                print("Could not convert end page to int")
+                return None
+        if not max_results:
+            max_results=100
+        else:
+            try:
+                max_results=int(max_results)
+            except:
+                print("Could not convert end max to int")
+                return None
+        
+
+        if sort=="citations" and direction=="ascending":
+            cursor.sort([("citations_count",ASCENDING)])
+        if sort=="citations" and direction=="descending":
+            cursor.sort([("citations_count",DESCENDING)])
+        if sort=="year" and direction=="ascending":
+            cursor.sort([("year_published",ASCENDING)])
+        if sort=="year" and direction=="descending":
+            cursor.sort([("year_published",DESCENDING)])
+
+        cursor=cursor.skip(max_results*(page-1)).limit(max_results)
+
+        entry=[]
+
+        for doc in cursor:
+            
+            authors=[]
+            for author in doc["authors"]:
+                au_entry={}
+                author_db=self.colav_db["authors"].find_one({"_id":author["id"]})
+                if author_db:
+                    au_entry={"full_name":author_db["full_name"],"id":author_db["_id"]}
+                affiliations=[]
+                for aff in author["affiliations"]:
+                    aff_entry={}
+                    aff_db=self.colav_db["institutions"].find_one({"_id":aff["id"]})
+                    if aff_db:
+                        aff_entry={"name":aff_db["name"],"id":aff_db["_id"]}
+                    
+                    affiliations.append(aff_entry)
+                au_entry["affiliations"]=affiliations
+                authors.append(au_entry)
+
+
+
+            try:
+                if doc["publication_type"]["source"]=="lens":
+
+                    source=self.colav_db["sources"].find_one({"_id":doc["source"]["id"]})
+
+                    entry.append({
+                    "id":doc["_id"],
+                    "title":doc["titles"][0]["title"],
+                    "citations_count":doc["citations_count"],
+                    "year_published":doc["year_published"],
+                    "open_access_status":doc["open_access_status"],
+                    "source":{"name":source["title"],"id":str(source["_id"])},
+                    "authors":authors
+                    })
+
+            except:
+                continue
+        return {"total":total,"page":page,"count":len(entry),"data":entry}
     
     def get_csv(self,idx=None,start_year=None,end_year=None,sort=None,direction=None):
         papers=[]
@@ -807,7 +920,13 @@ class AuthorsApp(HunabkuPluginBase):
             start_year=self.request.args.get('start_year')
             end_year=self.request.args.get('end_year')
             sort=self.request.args.get('sort')
-            production=self.get_production(idx,max_results,page,start_year,end_year,sort,"descending")
+            tipo = self.request.args.get('type')
+
+            if tipo == None: 
+                production=self.get_production(idx,max_results,page,start_year,end_year,sort,"descending")
+            else:
+                production=self.get_production_by_type(idx,max_results,page,start_year,end_year,sort,"descending",tipo)
+
             if production:
                 response = self.app.response_class(
                 response=self.json.dumps(production),

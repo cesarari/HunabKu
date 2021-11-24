@@ -505,13 +505,13 @@ class InstitutionsApp(HunabkuPluginBase):
         if idx:
 
             if start_year and not end_year:
-                cursor=self.colav_db['documents'].find({"year_published":{"$gte":start_year},"authors.affiliations.id":ObjectId(idx)})
+                cursor=self.colav_db['documents'].find({"year_published":{"$gte":start_year},"authors.affiliations.id":ObjectId(idx),"publication_type.type":tipo})
 
             elif end_year and not start_year:
-                cursor=self.colav_db['documents'].find({"year_published":{"$lte":end_year},"authors.affiliations.id":ObjectId(idx)})
+                cursor=self.colav_db['documents'].find({"year_published":{"$lte":end_year},"authors.affiliations.id":ObjectId(idx),"publication_type.type":tipo})
 
             elif start_year and end_year:
-                cursor=self.colav_db['documents'].find({"year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.id":ObjectId(idx)})
+                cursor=self.colav_db['documents'].find({"year_published":{"$gte":start_year,"$lte":end_year},"authors.affiliations.id":ObjectId(idx),"publication_type.type":tipo})
 
             else:
                 cursor=self.colav_db['documents'].find({"authors.affiliations.id":ObjectId(idx),"publication_type.type":tipo})
