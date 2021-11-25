@@ -11,6 +11,9 @@ class AuthorsApp(HunabkuPluginBase):
         super().__init__(hunabku)
 
     def get_info(self,idx):
+        initial_year=0
+        final_year=0
+
         if idx:
             result=self.colav_db['documents'].find({"authors.id":ObjectId(idx)},{"year_published":1}).sort([("year_published",ASCENDING)]).limit(1)
             if result:
@@ -31,21 +34,33 @@ class AuthorsApp(HunabkuPluginBase):
 
         author = self.colav_db['authors'].find_one({"_id":ObjectId(idx)})
         if author:
-            entry={"id":author["_id"],
+            entry={
+                "id":author["_id"],
                 "name":author["full_name"],
                 "affiliation":{"institution":{"name":"","id":""},"group":{"name":"","id":""}},
                 "external_urls":[],
+                "logo":""
             }
             if "affiliations" in author.keys():
                 if len(author["affiliations"]):
                     entry["affiliation"]["institution"]["id"]=author["affiliations"][-1]["id"]
                     entry["affiliation"]["institution"]["name"]=author["affiliations"][-1]["name"]
+            
+            if entry["affiliation"]:
+                inst_db=self.colav_db["institutions"].find_one({"_id":ObjectId(entry["affiliation"]["institution"]["id"])})
+                if inst_db:
+                    #entry["country_code"]=inst_db["addresses"][0]["country_code"]
+                    #entry["country"]=inst_db["addresses"][0]["country"]
+                    entry["logo"]=inst_db["logo_url"]
 
             if "branches" in author.keys():
                 for i in range(len(author["branches"])):
                     if author["branches"][i]["type"]=="group":
                         entry["affiliation"]["group"]["id"]  =author["branches"][i]["id"]
                         entry["affiliation"]["group"]["name"]=author["branches"][i]["name"]
+
+
+
 
             sources=[]
             for ext in author["external_ids"]:
@@ -608,7 +623,7 @@ class AuthorsApp(HunabkuPluginBase):
             "types":tipos
 
             }
-            
+
         """
         return {
             "data":papers,

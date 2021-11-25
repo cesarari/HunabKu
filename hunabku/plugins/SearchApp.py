@@ -29,25 +29,7 @@ class SearchApp(HunabkuPluginBase):
 
         affiliations=[reg["_id"] for reg in self.colav_db["authors"].aggregate(aff_pipeline) if "_id" in reg.keys()]
 
-        countries=[]
-        country_list=[]
-        pipeline.extend([
-            {"$unwind":"$affiliations"},
-            {"$lookup":{
-                "from":"institutions",
-                "localField":"affiliations.id",
-                "foreignField":"_id",
-                "as":"affiliations"
-                }
-            },
-            {"$project":{"affiliations.addresses.country_code":1,"affiliations.addresses.country":1,"_id":0}},
-            {"$unwind":"$affiliations"}
-        ])
-        for reg in self.colav_db["authors"].aggregate(pipeline,allowDiskUse=False):
-            country=reg["affiliations"]["addresses"][0]["country_code"]
-            if not country in country_list:
-                country_list.append(country)
-                countries.append({"country_code":country,"country":reg["affiliations"]["addresses"][0]["country"]})
+
 
         total=cursor.count()
         if not page:
@@ -74,26 +56,36 @@ class SearchApp(HunabkuPluginBase):
             for author in cursor:
                 entry={
                     "id":author["_id"],
-                    "full_name":author["full_name"],
-                    "affiliation":[]
+                    "name":author["full_name"],
+                    "affiliation":{"institution":{"name":"","id":""},"group":{"name":"","id":""}}
                 }
                 if "affiliations" in author.keys():
                     if len(author["affiliations"])>0:
-                        entry["affiliation"]=author["affiliations"][-1]
-                        if "id" in entry["affiliation"].keys():
-                            affdb=self.colav_db["institutions"].find_one({"_id":entry["affiliation"]["id"]})
-                            entry["affiliation"]["logo_url"]=affdb["logo_url"]
+                        entry["affiliation"]["institution"]["name"]=author["affiliations"][-1]["name"]
+                        entry["affiliation"]["institution"]["id"]  =author["affiliations"][-1]["id"]
+                
+                if "branches" in author.keys():
+                    for i in range(len(author["branches"])):    
+                        if author["branches"][i]["type"]=="group":
+                            group_name = author["branches"][i]["name"]
+                            group_id =   author["branches"][i]["id"]
+                else:
+                    group_name=""
+                    group_id=""
+                
+                entry["affiliation"]["group"]["name"]=group_name
+                entry["affiliation"]["group"]["id"]  =group_id
+                
+                
+
+
                 author_list.append(entry)
     
-            return {"data":author_list,
-                    "filters":{
-                        "affiliations":affiliations,
-                        "keywords":keywords,
-                        "countries":countries
-                    },
+            return {
+                    "total_results":total,
                     "count":len(author_list),
                     "page":page,
-                    "total_results":total
+                    "data":author_list
                 }
         else:
             return None
