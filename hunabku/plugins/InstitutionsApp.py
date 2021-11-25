@@ -350,7 +350,7 @@ class InstitutionsApp(HunabkuPluginBase):
         return {"total":total_results,"page":page,"count":len(entry["institutions"]),"data":entry}
 
 
-    def get_groups(self,idx=None,page=1,max_results=100):
+    def get_groups(self,idx=None,page=1,max_results=100,sort="citations",direction="descending"):
 
         pipeline=[
             {"$match":{"type":"group","relations.id":ObjectId(idx)}},
@@ -386,13 +386,22 @@ class InstitutionsApp(HunabkuPluginBase):
         
         skip = (max_results*(page-1))
 
-        pipeline.extend([{"$skip":skip},{"$limit":max_results}])
+        #pipeline.extend([{"$skip":skip},{"$limit":max_results}])
+        cursor=self.colav_db["branches"].find({"type":"group","relations.id":ObjectId(idx)})
+
+        cursor=cursor.skip(skip).limit(max_results)
+
+        if sort=="citations" and direction=="ascending":
+            cursor.sort([("citations_count",ASCENDING)])
+        if sort=="citations" and direction=="descending":
+            cursor.sort([("citations_count",DESCENDING)])
+
 
 
         entry = []
 
-        for reg in  self.colav_db["branches"].aggregate(pipeline):
-            entry.append({"name":reg["name"],"id":reg["_id"],"citations":reg["citations"]})
+        for reg in cursor:
+            entry.append({"name":reg["name"],"id":reg["_id"],"citations":reg["citations_count"]})
 
 
 
