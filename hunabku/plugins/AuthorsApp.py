@@ -157,7 +157,7 @@ class AuthorsApp(HunabkuPluginBase):
                 "_id":"$citers.year_published","count":{"$sum":1}}
             },
             {"$sort":{
-                "_id":-1
+                "_id":1
             }}
         ])
 
