@@ -53,6 +53,8 @@ class SearchApp(HunabkuPluginBase):
         if cursor:
             author_list=[]
             keywords=[]
+            group_name = ""
+            group_id = ""
             for author in cursor:
                 entry={
                     "id":author["_id"],
@@ -69,9 +71,8 @@ class SearchApp(HunabkuPluginBase):
                         if author["branches"][i]["type"]=="group":
                             group_name = author["branches"][i]["name"]
                             group_id =   author["branches"][i]["id"]
-                else:
-                    group_name=""
-                    group_id=""
+
+                
                 
                 entry["affiliation"]["group"]["name"]=group_name
                 entry["affiliation"]["group"]["id"]  =group_id
