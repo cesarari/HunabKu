@@ -155,7 +155,7 @@ class GroupsApp(HunabkuPluginBase):
     
         return {"data": entry}
 
-    def get_authors(self,idx=None,page=1,max_results=100):
+    def get_authors(self,idx=None,page=1,max_results=100,sort="citations",direction="descending"):
         if idx:
 
             pipeline=[
@@ -177,7 +177,7 @@ class GroupsApp(HunabkuPluginBase):
             ])
 
 
-            total_results = self.colav_db["authors"].count_documents({"affiliations.id":ObjectId(idx)})
+            total_results = self.colav_db["authors"].count_documents({"branches.id":ObjectId(idx)})
 
 
             if not page:
@@ -203,28 +203,35 @@ class GroupsApp(HunabkuPluginBase):
             pipeline.extend([{"$skip":skip},{"$limit":max_results}])
 
 
-            result= self.colav_db["documents"].aggregate(pipeline)
+            #result= self.colav_db["documents"].aggregate(pipeline)
+            cursor=self.colav_db["authors"].find({"branches.id":ObjectId(idx)},
+                                                {"full_name":1,"affiliations":1,"branches":1,"citations_count":1,"products_count":1})
+            cursor=cursor.skip(skip).limit(max_results)
+
+            if sort=="citations" and direction=="ascending":
+                cursor.sort([("citations_count",ASCENDING)])
+            if sort=="citations" and direction=="descending":
+                cursor.sort([("citations_count",DESCENDING)])
+
         
             entry = []
 
-            for reg in result:
-                if "affiliations" in reg["author"].keys():
-                    if len(reg["author"]["affiliations"])>0:
-                        if "branches" in reg["author"]["affiliations"][0].keys():
-                            for i in range(len(reg["author"]["affiliations"][0]["branches"])):    
-                                if reg["author"]["affiliations"][0]["branches"][i]["type"]=="group":
-                                    group_name = reg["author"]["affiliations"][0]["branches"][i]["name"]
-                                    group_id =   reg["author"]["affiliations"][0]["branches"][i]["id"]
+            for reg in cursor:
+                if "branches" in reg.keys():
+                    for i in range(len(reg["branches"])):    
+                        if reg["branches"][i]["type"]=="group":
+                            group_name = reg["branches"][i]["name"]
+                            group_id =   reg["branches"][i]["id"]
                         
 
         
                 entry.append({
                     "id":reg["_id"],
-                    "name":reg["author"]["full_name"],
-                    "papers_count":reg["papers_count"],
+                    "name":reg["full_name"],
+                    "papers_count":reg["products_count"],
                     "citations_count":reg["citations_count"],
-                    "affiliation":{"institution":{"name":reg["author"]["affiliations"][0]["name"], 
-                                        "id":reg["author"]["affiliations"][0]["id"]},
+                    "affiliation":{"institution":{"name":reg["affiliations"][0]["name"], 
+                                        "id":reg["affiliations"][0]["id"]},
                                    "group":{"name":group_name, "id":group_id}}
                 })
             
