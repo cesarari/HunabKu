@@ -194,20 +194,13 @@ class InstitutionsApp(HunabkuPluginBase):
             entry = []
 
             for reg in result:
-
+                group_name = ""
+                group_id = ""
                 if "branches" in reg["author"]["affiliations"][0]:
-
-
                     for i in range(len(reg["author"]["affiliations"][0]["branches"])):    
                         if reg["author"]["affiliations"][0]["branches"][i]["type"]=="group":
                             group_name = reg["author"]["affiliations"][0]["branches"][i]["name"]
-                            group_id =   reg["author"]["affiliations"][0]["branches"][i]["id"]
-                    
-   
-
-                else:
-                    group_name = ""
-                    group_id = ""    
+                            group_id =   reg["author"]["affiliations"][0]["branches"][i]["id"]    
 
         
                 entry.append({
