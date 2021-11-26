@@ -271,11 +271,8 @@ class InstitutionsApp(HunabkuPluginBase):
             {"$unwind":"$affiliation"}
         ])
 
-        pipeline_count = pipeline +[{"$count":"total_results"}]
 
-        cursor = self.colav_db["documents"].aggregate(pipeline_count)
-
-        total_results = list(cursor)[0]["total_results"]
+        total_results = len(set([reg["authors"]["affiliations"]["id"] for reg in self.colav_db["documents"].aggregate(pipeline[:4])]))
 
         if not page:
             page=1
@@ -345,6 +342,113 @@ class InstitutionsApp(HunabkuPluginBase):
         for item in countries:
             item["log_count"]=log(item["count"])
         entry["geo"]=countries
+
+
+        aff_nodes=[]
+        aff_edges=[]
+        nodes_idlist=[]
+        aff_edge_tuples=[]
+        arango_edges=[]
+        arango_nodes=[]
+        arango_mongo_aff_nodes={}
+        arango_mongo_aff_nodenames={}
+        query="FOR c IN authors FILTER c.affiliation.id=='"+idx+"' RETURN {_id:c._id,name:c.name,affiliation:c.affiliation}"
+        result=list(self.arangodb.AQLQuery(query,rawResults=True,batchSize=1))
+
+        aff_name=result[0]["affiliation"]["name"]
+        aff_nodes.append({
+            "id":idx,
+            "degree":0,
+            "size":0,
+            "label":aff_name
+            })
+        
+        for res in result: 
+            arangoid=res["_id"]
+            query="FOR v,e,p IN 1..1 ANY '"+arangoid+"' GRAPH coauthors RETURN {affiliation:v.affiliation,_id:v._id,weight:e.weight}" 
+            for vertex in self.arangodb.AQLQuery(query,rawResults=True,batchSize=1):
+                arango_nodes.append(vertex["_id"])
+                
+                if vertex["affiliation"]:
+                    arango_mongo_aff_nodes[vertex["_id"]]=vertex["affiliation"]["id"]
+                    arango_mongo_aff_nodenames[vertex["_id"]]=vertex["affiliation"]["name"]
+                    aff_node={
+                        "id":vertex["affiliation"]["id"],
+                        "degree":0,
+                        "size":0,
+                        "label":vertex["affiliation"]["name"]
+                        }
+                    if not aff_node in aff_nodes:
+                        aff_nodes.append(aff_node)
+                    normal=(idx,vertex["affiliation"]["id"])
+                    rever=(vertex["affiliation"]["id"],idx)
+                    if not (normal in aff_edge_tuples or rever in aff_edge_tuples):
+                        aff_edge_tuples.append(normal)
+                        aff_edges.append({
+                            "coauthorships":vertex["weight"],
+                            "source":idx,
+                            "sourceName":aff_name,
+                            "target":vertex["affiliation"]["id"],
+                            "targetName":vertex["affiliation"]["name"],
+                            "size":vertex["weight"]
+                        })
+                    else:
+                        idaff=-1
+                        if normal in aff_edge_tuples:
+                            idaff=aff_edge_tuples.index(normal)
+                        elif rever in aff_edge_tuples:
+                            idaff=aff_edge_tuples.index(rever)
+                        aff_edges[idaff]["coauthorships"]+=vertex["weight"]
+
+        #When all nodes are retrieved, check if each node have a relationship with any of the other
+        for node in arango_nodes:
+            query="FOR e IN coauthorship FILTER e._from=='"+node+"' RETURN {_from:e._from,_to:e._to,weight:e.weight}"
+            for res in self.arangodb.AQLQuery(query,rawResults=True,batchSize=1):
+                if res["_to"] in arango_nodes and res["_from"] in arango_nodes:
+                    if res["_to"]==res["_from"]:
+                        continue
+                   
+                    if res["_from"] in arango_mongo_aff_nodes.keys() and res["_to"] in arango_mongo_aff_nodes.keys():
+                        normal=(arango_mongo_aff_nodes[res["_from"]],arango_mongo_aff_nodes[res["_to"]])
+                        rever=(arango_mongo_aff_nodes[res["_to"]],arango_mongo_aff_nodes[res["_from"]])
+                        if normal in aff_edge_tuples or rever in aff_edge_tuples:
+                            idaff=-1
+                            if normal in aff_edge_tuples:
+                                idaff=aff_edge_tuples.index(normal)
+                            elif rever in aff_edge_tuples:
+                                idaff=aff_edge_tuples.index(rever)
+                            if idaff!=-1:
+                                aff_edges[idaff]["coauthorships"]+=res["weight"]
+                        else:
+                            aff_edge_tuples.append(normal)
+                            aff_edges.append({"coauthorships":res["weight"],
+                                "source":arango_mongo_aff_nodes[res["_from"]],
+                                "sourceName":arango_mongo_aff_nodenames[res["_from"]],
+                                "target":arango_mongo_aff_nodes[res["_to"]],
+                                "targetName":arango_mongo_aff_nodenames[res["_to"]],
+                                "size":res["weight"]
+                            })
+        del(arango_nodes)
+        total=max([e["coauthorships"] for e in aff_edges])  if len(aff_edges)>0 else 1
+        degrees={}
+        num_nodes=len(aff_nodes)
+        for edge in aff_edges:
+            edge["coauthorships"]=edge["coauthorships"]
+            edge["size"]=10*log(1+edge["coauthorships"]/total,2)
+            if edge["source"] in degrees.keys():
+                degrees[edge["source"]]+=1
+            else:
+                degrees[edge["source"]]=1
+            if edge["target"] in degrees.keys():
+                degrees[edge["target"]]+=1
+            else:
+                degrees[edge["target"]]=1
+        for node in aff_nodes:
+            if node["id"] in degrees.keys():
+                node["size"]=50*log(1+degrees[node["id"]]/(num_nodes-1),2)
+                node["degree"]=degrees[node["id"]]
+        
+        entry["institutions_network"]={"nodes":aff_nodes,"edges":aff_edges}
 
 
         return {"total":total_results,"page":page,"count":len(entry["institutions"]),"data":entry}
