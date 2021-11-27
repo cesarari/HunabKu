@@ -15,12 +15,14 @@ class AuthorsApp(HunabkuPluginBase):
         final_year=0
 
         if idx:
-            result=self.colav_db['documents'].find({"authors.id":ObjectId(idx)},{"year_published":1}).sort([("year_published",ASCENDING)]).limit(1)
+            result=self.colav_db['documents'].find({"authors.id":ObjectId(idx)},
+                {"year_published":1}).sort([("year_published",ASCENDING)]).limit(1)
             if result:
                 result=list(result)
                 if len(result)>0:
                     initial_year=result[0]["year_published"]
-            result=self.colav_db['documents'].find({"authors.id":ObjectId(idx)},{"year_published":1}).sort([("year_published",DESCENDING)]).limit(1)
+            result=self.colav_db['documents'].find({"authors.id":ObjectId(idx)},
+                {"year_published":1}).sort([("year_published",DESCENDING)]).limit(1)
             if result:
                 result=list(result)
                 if len(result)>0:
@@ -46,12 +48,12 @@ class AuthorsApp(HunabkuPluginBase):
                     entry["affiliation"]["institution"]["id"]=author["affiliations"][-1]["id"]
                     entry["affiliation"]["institution"]["name"]=author["affiliations"][-1]["name"]
             
-            if entry["affiliation"]:
-                inst_db=self.colav_db["institutions"].find_one({"_id":ObjectId(entry["affiliation"]["institution"]["id"])})
-                if inst_db:
-                    #entry["country_code"]=inst_db["addresses"][0]["country_code"]
-                    #entry["country"]=inst_db["addresses"][0]["country"]
-                    entry["logo"]=inst_db["logo_url"]
+            if entry["affiliation"]["institution"]["id"] != "":
+                    inst_db=self.colav_db["institutions"].find_one({"_id":ObjectId(entry["affiliation"]["institution"]["id"])})
+                    if inst_db:
+                        #entry["country_code"]=inst_db["addresses"][0]["country_code"]
+                        #entry["country"]=inst_db["addresses"][0]["country"]
+                        entry["logo"]=inst_db["logo_url"]
 
             if "branches" in author.keys():
                 for i in range(len(author["branches"])):

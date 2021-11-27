@@ -479,10 +479,10 @@ class SearchApp(HunabkuPluginBase):
                     author_entry={
                         "id":reg_au["_id"],
                         "full_name":reg_au["full_name"],
-                        "affiliations":""
+                        "affiliations":[]
                     }
                     if reg_aff:
-                        author_entry["affiliations"]={"id":reg_aff["_id"],"name":reg_aff["name"]}
+                        author_entry["affiliations"].append({"id":reg_aff["_id"],"name":reg_aff["name"]})
                     authors.append(author_entry)
                 entry["authors"]=authors
 

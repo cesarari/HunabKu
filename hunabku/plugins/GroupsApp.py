@@ -222,6 +222,9 @@ class GroupsApp(HunabkuPluginBase):
                         if reg["branches"][i]["type"]=="group":
                             group_name = reg["branches"][i]["name"]
                             group_id =   reg["branches"][i]["id"]
+                else:
+                    group_name=""
+                    group_id=""
                         
 
         
@@ -280,7 +283,7 @@ class GroupsApp(HunabkuPluginBase):
             {"$group":{"_id":"$authors.id","count":{"$sum":1}}},
             {"$sort":{"count":-1}},
             {"$lookup":{"from":"authors","localField":"_id","foreignField":"_id","as":"author"}},
-            {"$project":{"count":1,"author.full_name":1}},
+            {"$project":{"count":1,"author.full_name":1,"author.affiliations":1}},
             {"$unwind":"$author"}
         ])
 
@@ -289,9 +292,21 @@ class GroupsApp(HunabkuPluginBase):
             "geo":[]
         }
 
-        entry["coauthors"]=[
-            {"id":reg["_id"],"full_name":reg["author"]["full_name"],"count":reg["count"]} for reg in self.colav_db["documents"].aggregate(pipeline)
-        ]
+
+
+        for reg in self.colav_db["documents"].aggregate(pipeline):
+
+            if "affiliations" in reg["author"].keys():
+                affiliation_id = reg["author"]["affiliations"][-1]["id"]
+
+            else: 
+                affiliation_id = ""
+
+            entry["coauthors"].append(
+                {"id":reg["_id"],"full_name":reg["author"]["full_name"],
+                "affiliations":affiliation_id,
+                "count":reg["count"]} 
+            )
 
         countries=[]
         country_list=[]
