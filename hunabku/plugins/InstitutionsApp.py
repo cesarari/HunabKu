@@ -337,7 +337,7 @@ class InstitutionsApp(HunabkuPluginBase):
         entry["geo"]=countries
 
 
-        aff_nodes=[]
+        '''aff_nodes=[]
         aff_edges=[]
         nodes_idlist=[]
         aff_edge_tuples=[]
@@ -441,7 +441,7 @@ class InstitutionsApp(HunabkuPluginBase):
                 node["size"]=50*log(1+degrees[node["id"]]/(num_nodes-1),2)
                 node["degree"]=degrees[node["id"]]
         
-        entry["institutions_network"]={"nodes":aff_nodes,"edges":aff_edges}
+        entry["institutions_network"]={"nodes":aff_nodes,"edges":aff_edges}'''
 
 
         return {"total":total_results,"page":page,"count":len(entry["institutions"]),"data":entry}
