@@ -476,14 +476,18 @@ class SearchApp(HunabkuPluginBase):
                     reg_aff=""
                     if author["affiliations"]:
                         reg_aff=self.colav_db["institutions"].find_one({"_id":author["affiliations"][0]["id"]})
+                    
+                    
                     author_entry={
                         "id":reg_au["_id"],
                         "full_name":reg_au["full_name"],
-                        "affiliations":[]
+                        "affiliation": { "group":{ "name":"", "id":""  } }
                     }
                     if reg_aff:
-                        author_entry["affiliations"].append(
-                            {"group":{"name":reg_aff["name"],"id":reg_aff["_id"]}})
+                        author_entry["affiliation"]["group"]["name"] = reg_aff["name"]
+                        author_entry["affiliation"]["group"]["id"]   = reg_aff["_id"]
+                  
+
                     authors.append(author_entry)
                 entry["authors"]=authors
 
