@@ -298,13 +298,16 @@ class GroupsApp(HunabkuPluginBase):
 
             if "affiliations" in reg["author"].keys():
                 affiliation_id = reg["author"]["affiliations"][-1]["id"]
+                affiliation_name = reg["author"]["affiliations"][-1]["name"]
 
             else: 
                 affiliation_id = ""
+                affiliation_name = ""
 
             entry["coauthors"].append(
-                {"id":reg["_id"],"full_name":reg["author"]["full_name"],
-                "affiliations":affiliation_id,
+                {"id":reg["_id"],"name":reg["author"]["full_name"],
+                "affiliations":{"institution":{"id":affiliation_id,
+                    "name":affiliation_name} },
                 "count":reg["count"]} 
             )
 
