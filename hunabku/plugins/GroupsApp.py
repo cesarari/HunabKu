@@ -11,6 +11,9 @@ class GroupsApp(HunabkuPluginBase):
         super().__init__(hunabku)
 
     def get_info(self,idx):
+
+        initial_year=0
+        final_year = 0
         
         result=self.colav_db['documents'].find({"authors.affiliations.branches.id":ObjectId(idx)},{"year_published":1}).sort([("year_published",ASCENDING)]).limit(1)
         if result:

@@ -6,14 +6,14 @@ class SearchApp(HunabkuPluginBase):
     def __init__(self, hunabku):
         super().__init__(hunabku)
 
-    def search_author(self,keywords="",affiliation="",country="",max_results=100,page=1):
+    def search_author(self,keywords="",affiliation="",country="",max_results=100,page=1,sort="citations"):
 
         if keywords:
             cursor=self.colav_db['authors'].find({"$text":{"$search":keywords},"external_ids":{"$ne":[]}},{ "score": { "$meta": "textScore" } }).sort([("score", { "$meta": "textScore" } )])
             pipeline=[{"$match":{"$text":{"$search":keywords},"external_ids":{"$ne":[]}}}]
             aff_pipeline=[
                 {"$match":{"$text":{"$search":keywords},"external_ids":{"$ne":[]}}},
-                {"$unwind":"$affiliations"},{"$project":{"affiliations":1}},
+                {"$unwind":"$affiliations"},{"$project":{"affiliations":1,"products_count":1, "citations_count":1}},
                 {"$group":{"_id":"$id","affiliation":{"$last":"$affiliations"}}},
                 {"$group":{"_id":"$affiliation"}}
             ]
@@ -22,13 +22,20 @@ class SearchApp(HunabkuPluginBase):
             pipeline=[{"$match":{"external_ids":{"$ne":[]}}}]
             aff_pipeline=[
                 {"$match":{"external_ids":{"$ne":[]}}},
-                {"$unwind":"$affiliations"},{"$project":{"affiliations":1}},
+                {"$unwind":"$affiliations"},{"$project":{"affiliations":1,"products_count":1, "citations_count":1}},
                 {"$group":{"_id":"$id","affiliation":{"$last":"$affiliations"}}},
                 {"$group":{"_id":"$affiliation"}}
             ]
 
-        affiliations=[reg["_id"] for reg in self.colav_db["authors"].aggregate(aff_pipeline) if "_id" in reg.keys()]
+        #affiliations=[reg["_id"] for reg in self.colav_db["authors"].aggregate(aff_pipeline) if "_id" in reg.keys()]
 
+        
+
+
+        if sort=="citations":
+            cursor.sort([("citations_count",DESCENDING)])
+        if sort=="products":
+                cursor.sort([("products_count",DESCENDING)])
 
 
         total=cursor.count()
@@ -48,7 +55,13 @@ class SearchApp(HunabkuPluginBase):
             except:
                 print("Could not convert end max to int")
                 return None
+
+
+
+
         cursor=cursor.skip(max_results*(page-1)).limit(max_results)
+
+
 
         if cursor:
             author_list=[]
@@ -59,7 +72,11 @@ class SearchApp(HunabkuPluginBase):
                 entry={
                     "id":author["_id"],
                     "name":author["full_name"],
+                    "papers_count"   :author["products_count"],
+                    "citations_count":author["citations_count"],
                     "affiliation":{"institution":{"name":"","id":""},"group":{"name":"","id":""}}
+
+
                 }
                 if "affiliations" in author.keys():
                     if len(author["affiliations"])>0:
@@ -91,16 +108,16 @@ class SearchApp(HunabkuPluginBase):
         else:
             return None
 
-    def search_branch(self,branch,keywords="",institution_id=None,max_results=100,page=1):
+    def search_branch(self,branch,keywords="",institution_id=None,max_results=100,page=1,sort="citations"):
 
         if keywords:
             if institution_id:
                 cursor=self.colav_db['branches'].find({"$text":{"$search":keywords},"type":branch,"relations.id":ObjectId(institution_id)})
-                cursor.sort([("name", ASCENDING)])
+                #cursor.sort([("name", ASCENDING)])
    
             else:
                 cursor=self.colav_db['branches'].find({"$text":{"$search":keywords},"type":branch})
-                cursor.sort([("name", ASCENDING)])
+                #cursor.sort([("name", ASCENDING)])
             pipeline=[{"$match":{"$text":{"$search":keywords},"type":branch}}]
             aff_pipeline=[
                 {"$match":{"$text":{"$search":keywords},"type":branch}},
@@ -113,7 +130,7 @@ class SearchApp(HunabkuPluginBase):
         else:
             if institution_id:
                 cursor=self.colav_db['branches'].find({"type":branch,"relations.id":ObjectId(institution_id)})
-                cursor.sort([("name", ASCENDING)])
+                #cursor.sort([("name", ASCENDING)])
             else:
                 cursor=self.colav_db['branches'].find({"type":branch})
             pipeline=[]
@@ -122,6 +139,12 @@ class SearchApp(HunabkuPluginBase):
                 {"$unwind":"$relations"},
                 {"$group":{"_id":{"name":"$relations.name","id":"$relations.id"}}}
             ]
+
+
+        if sort=="citations":
+            cursor.sort([("citations_count",DESCENDING)])
+        if sort=="products":
+                cursor.sort([("products_count",DESCENDING)])
 
         total=cursor.count()
         if not page:
@@ -140,6 +163,10 @@ class SearchApp(HunabkuPluginBase):
             except:
                 print("Could not convert end max to int")
                 return None
+
+
+
+
         cursor=cursor.skip(max_results*(page-1)).limit(max_results)
 
         pipeline.append({"$group":{"_id":{"country_code":"$addresses.country_code","country":"$addresses.country"}}})
@@ -151,7 +178,9 @@ class SearchApp(HunabkuPluginBase):
                 if not country in countries:
                     countries.append(country)
 
-        affiliations=[reg["_id"] for reg in self.colav_db["branches"].aggregate(aff_pipeline)]
+        #affiliations=[reg["_id"] for reg in self.colav_db["branches"].aggregate(aff_pipeline)]
+
+
         
 
         if cursor:
@@ -160,13 +189,23 @@ class SearchApp(HunabkuPluginBase):
                 entry={
                     "name":entity["name"],
                     "id":str(entity["_id"]),
-                    "affiliation":{}
+                    "papers_count":entity["products_count"],
+                    "citations_count":entity["citations_count"],
+                    "affiliation":{"institution":{"name":"","id":""},"group":{"name":"","id":""}}
+
                 }
+                
+                print(entity)
                 for relation in entity["relations"]:
                     if relation["type"]=="university":
-                        del(relation["type"])
-                        del(relation["collection"])
-                        entry["affiliation"]=relation
+                        entry["affiliation"]["institution"]["name"]=relation["name"]
+                        entry["affiliation"]["institution"]["id"]=relation["id"]
+                        entry["affiliation"]["group"]["name"]=entity["name"]
+                        entry["affiliation"]["group"]["id"]=entity["_id"]
+
+
+
+
 
                 entity_list.append(entry)
                         
@@ -178,23 +217,29 @@ class SearchApp(HunabkuPluginBase):
         else:
             return None
 
-    def search_institution(self,keywords="",country="",max_results=100,page=1):
+    def search_institution(self,keywords="",country="",max_results=100,page=1,sort='citations'):
         if keywords:
             if country:
                 cursor=self.colav_db['institutions'].find({"$text":{"$search":keywords},"addresses.country_code":country,"external_ids":{"$ne":[]}})
-                cursor.sort([("name", ASCENDING)])
             else:
                 cursor=self.colav_db['institutions'].find({"$text":{"$search":keywords},"external_ids":{"$ne":[]}})
-                cursor.sort([("name", ASCENDING)])
+                
             country_pipeline=[{"$match":{"$text":{"$search":keywords},"external_ids":{"$ne":[]}}}]
         else:
             if country:
                 cursor=self.colav_db['institutions'].find({"addresses.country_code":country,"external_ids":{"$ne":[]}})
-                cursor.sort([("name", ASCENDING)])
+                
             else:
                 cursor=self.colav_db['institutions'].find({"external_ids":{"$ne":[]}})
-                cursor.sort([("name", ASCENDING)])
+                
             country_pipeline=[]
+
+        
+        if sort=="citations":
+            cursor.sort([("citations_count",DESCENDING)])
+        if sort=="products":
+            cursor.sort([("products_count",DESCENDING)])
+
             
 
         country_pipeline.append(
@@ -229,22 +274,32 @@ class SearchApp(HunabkuPluginBase):
             except:
                 print("Could not convert end max to int")
                 return None
+
+
+
         cursor=cursor.skip(max_results*(page-1)).limit(max_results)
+
+
 
         if cursor:
             institution_list=[]
             for institution in cursor:
+                print(institution)
                 entry={
                     "id":institution["_id"],
                     "name":institution["name"],
+                    "papers_count":institution["products_count"],
+                    "citations_count":institution["citations_count"],
                     "logo":institution["logo_url"]
                 }
                 institution_list.append(entry)
     
-            return {"data":institution_list,
+            return {
+                    "total_results":total,
                     "count":len(institution_list),
                     "page":page,
-                    "total_results":total
+                    "data":institution_list
+
                 }
         else:
             return None
@@ -420,7 +475,7 @@ class SearchApp(HunabkuPluginBase):
                 {"$group":{"_id":"$_id","affiliation":{"$last":"$affiliations"}}},
                 {"$group":{"_id":"$affiliation"}}
             ])
-        affiliations=[reg["_id"] for reg in self.colav_db["authors"].aggregate(aff_pipeline)]
+        #affiliations=[reg["_id"] for reg in self.colav_db["authors"].aggregate(aff_pipeline)]
             
 
 
@@ -727,19 +782,22 @@ class SearchApp(HunabkuPluginBase):
             max_results=self.request.args.get('max') if 'max' in self.request.args else 100
             page=self.request.args.get('page') if 'page' in self.request.args else 1
             keywords = self.request.args.get('keywords') if "keywords" in self.request.args else ""
+            sort = self.request.args.get('sort') if "sort" in self.request.args else "citations"
             id = self.request.args.get('institution') if "institution" in self.request.args else ""
-            result=self.search_branch("group",keywords=keywords,institution_id=id,max_results=max_results,page=page)
+            result=self.search_branch("group",keywords=keywords,institution_id=id,max_results=max_results,page=page,sort=sort)
         elif data=="authors":
             max_results=self.request.args.get('max') if 'max' in self.request.args else 100
             page=self.request.args.get('page') if 'page' in self.request.args else 1
             keywords = self.request.args.get('keywords') if "keywords" in self.request.args else ""
-            result=self.search_author(keywords=keywords,max_results=max_results,page=page)
+            sort = self.request.args.get('sort') if "sort" in self.request.args else "citations"
+            result=self.search_author(keywords=keywords,max_results=max_results,page=page,sort=sort)
         elif data=="institutions":
             max_results=self.request.args.get('max') if 'max' in self.request.args else 100
             page=self.request.args.get('page') if 'page' in self.request.args else 1
             keywords = self.request.args.get('keywords') if "keywords" in self.request.args else ""
+            sort = self.request.args.get('sort') if "sort" in self.request.args else "citations"
             country = self.request.args.get('country') if "country" in self.request.args else ""
-            result=self.search_institution(keywords=keywords,country=country,max_results=max_results,page=page)
+            result=self.search_institution(keywords=keywords,country=country,max_results=max_results,page=page,sort=sort)
         elif data=="literature":
             max_results=self.request.args.get('max') if 'max' in self.request.args else 100
             page=self.request.args.get('page') if 'page' in self.request.args else 1
