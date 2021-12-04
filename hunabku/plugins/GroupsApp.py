@@ -134,6 +134,7 @@ class GroupsApp(HunabkuPluginBase):
         geo_pipeline.extend([
             {"$unwind":"$citers.authors"},
             {"$project":{"citers.authors.affiliations":1}},
+            {"$unwind":"$citers.authors.affiliations"},
             {"$lookup":{"from":"institutions","foreignField":"_id","localField":"citers.authors.affiliations.id","as":"affiliation"}},
             {"$project":{"affiliation.addresses.country":1,"affiliation.addresses.country_code":1}},
             {"$unwind":"$affiliation"},{"$group":{"_id":"$affiliation.addresses.country_code","count":{"$sum":1},
