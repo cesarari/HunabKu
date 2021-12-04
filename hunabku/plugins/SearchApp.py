@@ -441,6 +441,7 @@ class SearchApp(HunabkuPluginBase):
         if keywords: 
             cursor=self.colav_db['documents'].find({"$text":{"$search":keywords}},{"year_published":1})
             result = cursor.sort([("year_published",ASCENDING)]).limit(1)
+
             if result:
                 result=list(result)
                 print(result)
@@ -475,25 +476,27 @@ class SearchApp(HunabkuPluginBase):
         institution_filters = []
         group_filters=[]
 
-        aff_ids = cursor.distinct("authors.affiliations.id")
 
 
-        for id in aff_ids:
-            inst=list(self.colav_db["institutions"].find({"_id":id}))
-            if inst:
-                entry = {"id":str(id),"name":list(self.colav_db['institutions'].find({"_id":id},{"name":1}))[0]["name"]}
-            institution_filters.append(entry)
+        if keywords:
+            aff_pipeline =[
+                {"$match":{"$text":{"$search":keywords}}},
+                {"$project":{"authors.affiliations":1}},
+                {"$unwind":"$authors"},
+                {"$group":{"_id":{"$arrayElemAt":["$authors.affiliations.id",0]},"name":{"$first":"$authors.affiliations.name"}}},
+                {"$unwind":"$name"}
+            ]
+
+
+
+            cursor = self.colav_db["documents"].aggregate(aff_pipeline,allowDiskUse=True)
             
 
-        #for branch in branches:
-        #    if branch["type"]=='group':
-        #        entry = {"id":str(branch["id"]),"name":branch["name"]}
-        #        group_filters.append(entry)
 
-
-        
-
-
+            for institution in cursor:
+                entry = {"id":institution["_id"],"name":institution["name"]}
+                
+            institution_filters.append(entry)
 
        
         
