@@ -240,7 +240,7 @@ class AuthorsApp(HunabkuPluginBase):
             {"$group":{"_id":"$authors.id","count":{"$sum":1}}},
             {"$sort":{"count":-1}},
             {"$lookup":{"from":"authors","localField":"_id","foreignField":"_id","as":"author"}},
-            {"$project":{"count":1,"author.full_name":1}},
+            {"$project":{"count":1,"author.full_name":1,"author.affiliations":1}},
             {"$unwind":"$author"}
         ])
 
@@ -250,9 +250,23 @@ class AuthorsApp(HunabkuPluginBase):
             "coauthors_network":{}
         }
 
-        entry["coauthors"]=[
-            {"id":reg["_id"],"full_name":reg["author"]["full_name"],"count":reg["count"]} for reg in self.colav_db["documents"].aggregate(pipeline) if reg["_id"] != ObjectId(idx)
-        ]
+        for reg in self.colav_db["documents"].aggregate(pipeline):
+
+            if "affiliations" in reg["author"].keys():
+                affiliation_id = reg["author"]["affiliations"][-1]["id"]
+                affiliation_name = reg["author"]["affiliations"][-1]["name"]
+
+            else: 
+                affiliation_id = ""
+                affiliation_name = ""
+
+            entry["coauthors"].append(
+                {"id":reg["_id"],"name":reg["author"]["full_name"],
+                "affiliations":{"institution":{"id":affiliation_id,
+                    "name":affiliation_name} },
+                "count":reg["count"]} 
+            )
+
 
         countries=[]
         country_list=[]
@@ -392,7 +406,7 @@ class AuthorsApp(HunabkuPluginBase):
                 "id":idx,
                 "degree":0,
                 "size":10,
-                "label":au["full_name"] if aff!="" else "",
+                "label":au["full_name"] if  au  else "",
                 "affiliation":aff["name"] if aff!="" else "",
             }],"edges":[]}
 
