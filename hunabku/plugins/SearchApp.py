@@ -6,7 +6,11 @@ class SearchApp(HunabkuPluginBase):
     def __init__(self, hunabku):
         super().__init__(hunabku)
 
-    def search_author(self,keywords="",affiliation="",country="",max_results=100,page=1,sort="citations"):
+    def search_author(self,keywords="",affiliation="",country="",max_results=100,page=1,
+        group_id=None,institution_id=None,sort="citations"):
+
+
+        
 
         if keywords:
             cursor=self.colav_db['authors'].find({"$text":{"$search":keywords},"external_ids":{"$ne":[]}},{ "score": { "$meta": "textScore" } }).sort([("score", { "$meta": "textScore" } )])
@@ -29,7 +33,62 @@ class SearchApp(HunabkuPluginBase):
 
         #affiliations=[reg["_id"] for reg in self.colav_db["authors"].aggregate(aff_pipeline) if "_id" in reg.keys()]
 
+        institution_filters = []
+        group_filters=[]
+
+        institutions_ids = cursor.distinct("affiliations.id")
+        branches  = cursor.distinct("branches")
+
+        for id in institutions_ids:
+            entry = {"id":str(id),"name":list(self.colav_db['institutions'].find({"_id":id},{"name":1}))[0]["name"]}
+            institution_filters.append(entry)
+
+        for branch in branches:
+            if branch["type"]=='group':
+                entry = {"id":str(branch["id"]),"name":branch["name"]}
+                group_filters.append(entry)
+
+
+        if keywords and group_id:
+            cursor=self.colav_db['authors'].find({"$text":{"$search":keywords},"external_ids":{"$ne":[]},
+                "branches.id":ObjectId(group_id)},{ "score": { "$meta": "textScore" } }).sort([("score", { "$meta": "textScore" } )])
+            pipeline=[{"$match":{"$text":{"$search":keywords},"external_ids":{"$ne":[]}}}]
+            aff_pipeline=[
+                {"$match":{"$text":{"$search":keywords},"external_ids":{"$ne":[]}}},
+                {"$unwind":"$affiliations"},{"$project":{"affiliations":1,"products_count":1, "citations_count":1}},
+                {"$group":{"_id":"$id","affiliation":{"$last":"$affiliations"}}},
+                {"$group":{"_id":"$affiliation"}}
+            ]
         
+        if keywords and institution_id:
+            cursor=self.colav_db['authors'].find({"$text":{"$search":keywords},"external_ids":{"$ne":[]}},{ "score": { "$meta": "textScore" } }).sort([("score", { "$meta": "textScore" } )])
+            pipeline=[{"$match":{"$text":{"$search":keywords},"external_ids":{"$ne":[]}}}]
+            aff_pipeline=[
+                {"$match":{"$text":{"$search":keywords},"external_ids":{"$ne":[]}}},
+                {"$unwind":"$affiliations"},{"$project":{"affiliations":1,"products_count":1, "citations_count":1}},
+                {"$group":{"_id":"$id","affiliation":{"$last":"$affiliations"}}},
+                {"$group":{"_id":"$affiliation"}}
+            ]
+
+        if keywords=="" and institution_id:
+            cursor=self.colav_db['authors'].find({"external_ids":{"$ne":[]}})
+            pipeline=[{"$match":{"external_ids":{"$ne":[]}}}]
+            aff_pipeline=[
+                {"$match":{"external_ids":{"$ne":[]}}},
+                {"$unwind":"$affiliations"},{"$project":{"affiliations":1,"products_count":1, "citations_count":1}},
+                {"$group":{"_id":"$id","affiliation":{"$last":"$affiliations"}}},
+                {"$group":{"_id":"$affiliation"}}
+            ]
+
+        if keywords=="" and group_id:
+            cursor=self.colav_db['authors'].find({"external_ids":{"$ne":[]},"branches.id":ObjectId(group_id)})
+            pipeline=[{"$match":{"external_ids":{"$ne":[]}}}]
+            aff_pipeline=[
+                {"$match":{"external_ids":{"$ne":[]}}},
+                {"$unwind":"$affiliations"},{"$project":{"affiliations":1,"products_count":1, "citations_count":1}},
+                {"$group":{"_id":"$id","affiliation":{"$last":"$affiliations"}}},
+                {"$group":{"_id":"$affiliation"}}
+            ]
 
 
         if sort=="citations":
@@ -103,6 +162,7 @@ class SearchApp(HunabkuPluginBase):
                     "total_results":total,
                     "count":len(author_list),
                     "page":page,
+                    "filters":{"institutions":institution_filters,"groups":group_filters},
                     "data":author_list
                 }
         else:
@@ -110,14 +170,23 @@ class SearchApp(HunabkuPluginBase):
 
     def search_branch(self,branch,keywords="",institution_id=None,max_results=100,page=1,sort="citations"):
 
+
+        if keywords:
+            cursor=self.colav_db['branches'].find({"$text":{"$search":keywords},"type":branch})        
+            relations = cursor.distinct("relations")
+        else:
+            cursor=self.colav_db['branches'].find({"type":branch})
+            relations = cursor.distinct("relations")
+            
+
         if keywords:
             if institution_id:
                 cursor=self.colav_db['branches'].find({"$text":{"$search":keywords},"type":branch,"relations.id":ObjectId(institution_id)})
-                #cursor.sort([("name", ASCENDING)])
    
             else:
                 cursor=self.colav_db['branches'].find({"$text":{"$search":keywords},"type":branch})
-                #cursor.sort([("name", ASCENDING)])
+
+            
             pipeline=[{"$match":{"$text":{"$search":keywords},"type":branch}}]
             aff_pipeline=[
                 {"$match":{"$text":{"$search":keywords},"type":branch}},
@@ -130,15 +199,37 @@ class SearchApp(HunabkuPluginBase):
         else:
             if institution_id:
                 cursor=self.colav_db['branches'].find({"type":branch,"relations.id":ObjectId(institution_id)})
-                #cursor.sort([("name", ASCENDING)])
+
             else:
                 cursor=self.colav_db['branches'].find({"type":branch})
+
             pipeline=[]
             aff_pipeline=[
                 {"$project":{"relations":1}},
                 {"$unwind":"$relations"},
                 {"$group":{"_id":{"name":"$relations.name","id":"$relations.id"}}}
             ]
+            
+
+        tmp = []
+
+        entry={"id":"","name":""}
+        for r in relations:
+            if r["type"]=='university':
+                entry = {"id":str(r["id"]),"name":r["name"]}
+                tmp.append(entry)
+
+        #eliminamos duplicados en la lista de instituciones:
+        institution_filters = []
+        for e in tmp:
+            if e not in institution_filters:
+                institution_filters.append(e)
+
+
+            
+
+
+
 
 
         if sort=="citations":
@@ -209,10 +300,15 @@ class SearchApp(HunabkuPluginBase):
 
                 entity_list.append(entry)
                         
-            return {"data":entity_list,
+            return {
+                    "total_results":total,
                     "count":len(entity_list),
                     "page":page,
-                    "total_results":total
+                    "filters":{"institutions":institution_filters},
+                    "data":entity_list
+
+
+               
                 }
         else:
             return None
@@ -339,6 +435,66 @@ class SearchApp(HunabkuPluginBase):
     def search_documents(self,keywords="",start_year=None,end_year=None):
         open_access=[]
 
+        initial_year=0
+        final_year = 0
+
+        if keywords: 
+            cursor=self.colav_db['documents'].find({"$text":{"$search":keywords}},{"year_published":1})
+            result = cursor.sort([("year_published",ASCENDING)]).limit(1)
+            if result:
+                result=list(result)
+                print(result)
+                if len(result)>0:
+                    initial_year=result[0]["year_published"]
+            result=self.colav_db['documents'].find({"$text":{"$search":keywords}},{"year_published":1}).sort([("year_published",DESCENDING)]).limit(1)
+            if result:
+                result=list(result)
+                print(result)
+                if len(result)>0:
+                    final_year=result[0]["year_published"]
+        else:
+            cursor=self.colav_db['documents'].find({},{"year_published":1})
+            result = cursor.sort([("year_published",ASCENDING)]).limit(1)
+            if result:
+                result=list(result)
+                print(result)
+                if len(result)>0:
+                    initial_year=result[0]["year_published"]
+            result=self.colav_db['documents'].find({},{"year_published":1}).sort([("year_published",DESCENDING)]).limit(1)
+            if result:
+                result=list(result)
+                print(result)
+                if len(result)>0:
+                    final_year=result[0]["year_published"]
+
+        years={
+                "start_year":initial_year,
+                "end_year":final_year
+                }
+
+        institution_filters = []
+        group_filters=[]
+
+        aff_ids = cursor.distinct("authors.affiliations.id")
+
+
+        for id in aff_ids:
+            inst=list(self.colav_db["institutions"].find({"_id":id}))
+            if inst:
+                entry = {"id":str(id),"name":list(self.colav_db['institutions'].find({"_id":id},{"name":1}))[0]["name"]}
+            institution_filters.append(entry)
+            
+
+        #for branch in branches:
+        #    if branch["type"]=='group':
+        #        entry = {"id":str(branch["id"]),"name":branch["name"]}
+        #        group_filters.append(entry)
+
+
+        
+
+
+
        
         
         if start_year:
@@ -442,10 +598,13 @@ class SearchApp(HunabkuPluginBase):
         return {
             "open_access":open_access,
             "venn_source":self.get_venn(venn_query),
-            "types":tipos
+            "types":tipos,
+            "filters":{"years":years,"institutions":institution_filters}
         }
                     
-    def search_documents_by_type(self,keywords="",max_results=100,page=1,start_year=None,end_year=None,sort="citations",direction="descending",tipo=None):
+    def search_documents_by_type(self,keywords="",max_results=100,page=1,start_year=None,end_year=None,
+        sort="citations",direction="descending",tipo="article",institution_id=None,
+        group_id=None):
 
 
         if start_year:
@@ -461,21 +620,56 @@ class SearchApp(HunabkuPluginBase):
                 print("Could not convert end year to int")
                 return None
 
-        if keywords:
-            cursor=self.colav_db['documents'].find({"$text":{"$search":keywords},"publication_type.type":tipo})
-            aff_pipeline=[
-                {"$match":{"$text":{"$search":keywords},"publication_type.type":tipo}}
-            ]
+        if start_year and end_year:
+            if keywords:
+                if institution_id:
+                    cursor=self.colav_db['documents'].find({"$text":{"$search":keywords},
+                        "publication_type.type":tipo,"authors.affiliations.id":ObjectId(institution_id),
+                        "year_published":{"$gte":start_year,"$lte":end_year}})
+                    aff_pipeline=[
+                    {"$match":{"$text":{"$search":keywords}}}
+                    ]
+                else:
+                    cursor=self.colav_db['documents'].find({"$text":{"$search":keywords},
+                    "publication_type.type":tipo,"year_published":{"$gte":start_year,"$lte":end_year}})
+                    aff_pipeline=[
+                    {"$match":{"$text":{"$search":keywords}}}
+                    ]
+            else:
+                if institution_id:
+                    cursor=self.colav_db['documents'].find({"publication_type.type":tipo,
+                        "authors.affiliations.id":ObjectId(institution_id)})
+                    aff_pipeline=[]
+                else:
+                    cursor=self.colav_db['documents'].find({"publication_type.type":tipo})
+                    aff_pipeline=[]
         else:
-            cursor=self.colav_db['documents'].find({"publication_type.type":tipo})
-            aff_pipeline=[]
+            if keywords:
+                if institution_id:
+                    cursor=self.colav_db['documents'].find({"$text":{"$search":keywords},
+                    "publication_type.type":tipo,"authors.affiliations.id":ObjectId(institution_id)})
+                    aff_pipeline=[
+                        {"$match":{"$text":{"$search":keywords}}}
+                    ]
+                else:
+                    cursor=self.colav_db['documents'].find({"publication_type.type":tipo})
+                aff_pipeline=[]
+            else:
+                if institution_id:
+                    cursor=self.colav_db['documents'].find({"publication_type.type":tipo,
+                        "authors.affiliations.id":ObjectId(institution_id)})
+                    aff_pipeline=[]
+                else:
+                    cursor=self.colav_db['documents'].find({"publication_type.type":tipo})
+                    aff_pipeline=[]
 
         aff_pipeline.extend([
                 {"$unwind":"$affiliations"},{"$project":{"affiliations":1}},
                 {"$group":{"_id":"$_id","affiliation":{"$last":"$affiliations"}}},
                 {"$group":{"_id":"$affiliation"}}
             ])
-        #affiliations=[reg["_id"] for reg in self.colav_db["authors"].aggregate(aff_pipeline)]
+        
+        affiliations=[reg["_id"] for reg in self.colav_db["authors"].aggregate(aff_pipeline)]
             
 
 
@@ -536,14 +730,19 @@ class SearchApp(HunabkuPluginBase):
                     author_entry={
                         "id":reg_au["_id"],
                         "full_name":reg_au["full_name"],
-                        "affiliation": { "group":{ "name":"", "id":""  } }
+                        "affiliation": { 
+                            "institution":{"name":"","id":""},"group":{ "name":"", "id":""  } }
                     }
                     if reg_aff:
-                        author_entry["affiliation"]["group"]["name"] = reg_aff["name"]
-                        author_entry["affiliation"]["group"]["id"]   = reg_aff["_id"]
+                        author_entry["affiliation"]["institution"]["name"] = reg_aff["name"]
+                        author_entry["affiliation"]["institution"]["id"]   = reg_aff["_id"]
+                    
+
+                        
                   
 
                     authors.append(author_entry)
+
                 entry["authors"]=authors
 
                 paper_list.append(entry)
@@ -790,7 +989,10 @@ class SearchApp(HunabkuPluginBase):
             page=self.request.args.get('page') if 'page' in self.request.args else 1
             keywords = self.request.args.get('keywords') if "keywords" in self.request.args else ""
             sort = self.request.args.get('sort') if "sort" in self.request.args else "citations"
-            result=self.search_author(keywords=keywords,max_results=max_results,page=page,sort=sort)
+            group_id = self.request.args.get('group') if "group" in self.request.args else None
+            institution_id = self.request.args.get('institution') if "institution" in self.request.args else None
+            result=self.search_author(keywords=keywords,max_results=max_results,page=page,sort=sort,
+                group_id=group_id,institution_id=institution_id)
         elif data=="institutions":
             max_results=self.request.args.get('max') if 'max' in self.request.args else 100
             page=self.request.args.get('page') if 'page' in self.request.args else 1
@@ -806,11 +1008,15 @@ class SearchApp(HunabkuPluginBase):
             start_year=self.request.args.get('start_year')
             end_year=self.request.args.get('end_year')
             sort=self.request.args.get('sort')
+            institution_id=self.request.args.get('institution')
+            group_id=self.request.args.get('group')
             if tipo == None:
                 result=self.search_documents(keywords=keywords,start_year=start_year,end_year=end_year)
             else:
                 result=self.search_documents_by_type(keywords=keywords,max_results=max_results,
-                    page=page,start_year=start_year,end_year=end_year,sort=sort,direction="descending",tipo=tipo)
+                    page=page,start_year=start_year,end_year=end_year,sort=sort,
+                    direction="descending",tipo=tipo,institution_id=institution_id,
+                    group_id=group_id)
 
         else:
             result=None
