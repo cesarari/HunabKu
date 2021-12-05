@@ -133,25 +133,25 @@ class SearchApp(HunabkuPluginBase):
                     "name":author["full_name"],
                     "papers_count"   :author["products_count"],
                     "citations_count":author["citations_count"],
-                    "affiliations":{"institution":{"name":"","id":""},"group":{"name":"","id":""}}
+                    "affiliations":[{"name":"","id":""}]
 
 
                 }
                 if "affiliations" in author.keys():
                     if len(author["affiliations"])>0:
-                        entry["affiliations"]["institution"]["name"]=author["affiliations"][-1]["name"]
-                        entry["affiliations"]["institution"]["id"]  =author["affiliations"][-1]["id"]
+                        entry["affiliations"][0]["name"]=author["affiliations"][-1]["name"]
+                        entry["affiliations"][0]["id"]  =author["affiliations"][-1]["id"]
                 
-                if "branches" in author.keys():
+                '''if "branches" in author.keys():
                     for i in range(len(author["branches"])):    
                         if author["branches"][i]["type"]=="group":
                             group_name = author["branches"][i]["name"]
-                            group_id =   author["branches"][i]["id"]
+                            group_id =   author["branches"][i]["id"]'''
 
                 
                 
-                entry["affiliations"]["group"]["name"]=group_name
-                entry["affiliations"]["group"]["id"]  =group_id
+                #entry["affiliations"][0]["group"]["name"]=group_name
+                #entry["affiliations"][0]["group"]["id"]  =group_id
                 
                 
 
@@ -276,16 +276,16 @@ class SearchApp(HunabkuPluginBase):
                     "id":str(entity["_id"]),
                     "papers_count":entity["products_count"],
                     "citations_count":entity["citations_count"],
-                    "affiliations":{"institution":{"name":"","id":""},"group":{"name":"","id":""}}
+                    "affiliations":["name":"","id":""}]
 
                 }
                 
                 for relation in entity["relations"]:
                     if relation["type"]=="university":
-                        entry["affiliations"]["institution"]["name"]=relation["name"]
-                        entry["affiliations"]["institution"]["id"]=relation["id"]
-                        entry["affiliations"]["group"]["name"]=entity["name"]
-                        entry["affiliations"]["group"]["id"]=entity["_id"]
+                        entry["affiliations"][0]["name"]=relation["name"]
+                        entry["affiliations"][0]["id"]=relation["id"]
+                        #entry["affiliations"][0]["group"]["name"]=entity["name"]
+                        #entry["affiliations"][0]["group"]["id"]=entity["_id"]
 
 
 
@@ -839,12 +839,11 @@ class SearchApp(HunabkuPluginBase):
                     author_entry={
                         "id":reg_au["_id"],
                         "full_name":reg_au["full_name"],
-                        "affiliations": { 
-                            "institution":{"name":"","id":""},"group":{ "name":"", "id":""  } }
+                        "affiliations": [{"name":"","id":""}]
                     }
                     if reg_aff:
-                        author_entry["affiliations"]["institution"]["name"] = reg_aff["name"]
-                        author_entry["affiliations"]["institution"]["id"]   = reg_aff["_id"]
+                        author_entry["affiliations"][0]["name"] = reg_aff["name"]
+                        author_entry["affiliations"][0]["id"]   = reg_aff["_id"]
                     
 
                         
