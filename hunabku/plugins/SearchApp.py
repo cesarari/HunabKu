@@ -494,40 +494,79 @@ class SearchApp(HunabkuPluginBase):
 
             if start_year and not end_year:
                 venn_query={"year_published":{"$gte":start_year},"$text":{"$search":keywords}}
-                open_access.extend([
-                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$gte":start_year},"$text":{"$search":keywords}})  },
-                    {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$gte":start_year},"$text":{"$search":keywords}})   },
-                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$gte":start_year},"$text":{"$search":keywords}}) },
-                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$gte":start_year},"$text":{"$search":keywords}}) },
-                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$gte":start_year},"$text":{"$search":keywords}}) }
-                ])
+                val=self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$gte":start_year},"$text":{"$search":keywords}})
+                if val!=0:
+                    open_access.append({"type":"green" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$gte":start_year},"$text":{"$search":keywords}})
+                if val!=0:
+                    open_access.append({"type":"gold" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$gte":start_year},"$text":{"$search":keywords}})
+                if val!=0:
+                    open_access.append({"type":"bronze" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$gte":start_year},"$text":{"$search":keywords}})
+                if val!=0:
+                    open_access.append({"type":"closed" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$gte":start_year},"$text":{"$search":keywords}})
+                if val!=0:
+                    open_access.append({"type":"hybrid" ,"value":val})
+                
             elif end_year and not start_year:
                 venn_query={"year_published":{"$lte":end_year},"$text":{"$search":keywords}}
-                open_access.extend([
-                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$lte":end_year},"$text":{"$search":keywords}})  },
-                    {"type":"gold"  ,"value": self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$lte":end_year},"$text":{"$search":keywords}})  },
-                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$lte":end_year},"$text":{"$search":keywords}}) },
-                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$lte":end_year},"$text":{"$search":keywords}}) },
-                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$lte":end_year},"$text":{"$search":keywords}}) }
-                ])
+                
+                val=self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$lte":end_year},"$text":{"$search":keywords}})
+                if val!=0:
+                    open_access.append({"type":"green" ,"value":val})
+                val={"type":"gold"  ,"value": self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$lte":end_year},"$text":{"$search":keywords}})  },
+                if val!=0:
+                    open_access.append({"type":"gold" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$lte":end_year},"$text":{"$search":keywords}})
+                if val!=0:
+                    open_access.append({"type":"bronze" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$lte":end_year},"$text":{"$search":keywords}})
+                if val!=0:
+                    open_access.append({"type":"closed" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$lte":end_year},"$text":{"$search":keywords}})
+                if val!=0:
+                    open_access.append({"type":"hybrid" ,"value":val})
+                
             elif start_year and end_year:
                 venn_query={"year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}}
-                open_access.extend([
-                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords} }) },
-                    {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}})  },
-                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}})},
-                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}})},
-                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}})}
-                ])
+                
+                val=self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords} })
+                if val!=0:
+                    open_access.append({"type":"green" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}})
+                if val!=0:
+                    open_access.append({"type":"gold" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}})
+                if val!=0:
+                    open_access.append({"type":"bronze" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}})
+                if val!=0:
+                    open_access.append({"type":"closed" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$gte":start_year,"$lte":end_year},"$text":{"$search":keywords}})
+                if val!=0:
+                    open_access.append({"type":"hybrid" ,"value":val})
+                
             else:
                 venn_query={"$text":{"$search":keywords}}
-                open_access.extend([
-                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","$text":{"$search":keywords}}) },
-                    {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold","$text":{"$search":keywords}})  },
-                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","$text":{"$search":keywords}})},
-                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","$text":{"$search":keywords}})},
-                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","$text":{"$search":keywords}})}
-                ])
+    
+                val=self.colav_db['documents'].count_documents({"open_access_status":"green","$text":{"$search":keywords}})
+                if val!=0:
+                    open_access.append({"type":"green" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"gold","$text":{"$search":keywords}})
+                if val!=0:
+                    open_access.append({"type":"gold" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"bronze","$text":{"$search":keywords}})
+                if val!=0:
+                    open_access.append({"type":"bronze" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"closed","$text":{"$search":keywords}})
+                if val!=0:
+                    open_access.append({"type":"closed" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"hybrid","$text":{"$search":keywords}})
+                if val!=0:
+                    open_access.append({"type":"hybrid" ,"value":val})
+                
 
 
             tipos = self.colav_db['documents'].distinct("publication_type.type",{"$text":{"$search":keywords}})
@@ -535,40 +574,80 @@ class SearchApp(HunabkuPluginBase):
         else:
             if start_year and not end_year:
                 venn_query={"year_published":{"$gte":start_year}}
-                open_access.extend([
-                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$gte":start_year} })  },
-                    {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$gte":start_year} })   },
-                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$gte":start_year} }) },
-                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$gte":start_year} }) },
-                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$gte":start_year} }) }
-                ])
+                
+                val=self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$gte":start_year} })
+                if val!=0:
+                    open_access.append({"type":"green" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$gte":start_year} })
+                if val!=0:
+                    open_access.append({"type":"gold" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$gte":start_year} })
+                if val!=0:
+                    open_access.append({"type":"bronze" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$gte":start_year} })
+                if val!=0:
+                    open_access.append({"type":"closed" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$gte":start_year} })
+                if val!=0:
+                    open_access.append({"type":"hybrid" ,"value":val})
+            
             elif end_year and not start_year:
                 venn_query={"year_published":{"$lte":end_year} }
-                open_access.extend([
-                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$lte":end_year} })  },
-                    {"type":"gold"  ,"value": self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$lte":end_year} })  },
-                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$lte":end_year} }) },
-                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$lte":end_year} }) },
-                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$lte":end_year} }) }
-                ])
+                
+                val=self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$lte":end_year} })
+                if val!=0:
+                    open_access.append({"type":"green" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$lte":end_year} })
+                if val!=0:
+                    open_access.append({"type":"gold" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$lte":end_year} })
+                if val!=0:
+                    open_access.append({"type":"bronze" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$lte":end_year} })
+                if val!=0:
+                    open_access.append({"type":"closed" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$lte":end_year} })
+                if val!=0:
+                    open_access.append({"type":"hybrid" ,"value":val})
+                
             elif start_year and end_year:
                 venn_query={"year_published":{"$gte":start_year,"$lte":end_year} }
-                open_access.extend([
-                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$gte":start_year,"$lte":end_year} }) },
-                    {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$gte":start_year,"$lte":end_year} })  },
-                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$gte":start_year,"$lte":end_year} })},
-                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$gte":start_year,"$lte":end_year} })},
-                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$gte":start_year,"$lte":end_year} })}
-                ])
+                
+                val=self.colav_db['documents'].count_documents({"open_access_status":"green","year_published":{"$gte":start_year,"$lte":end_year} })
+                if val!=0:
+                    open_access.append({"type":"green" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"gold","year_published":{"$gte":start_year,"$lte":end_year} })
+                if val!=0:
+                    open_access.append({"type":"gold" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"bronze","year_published":{"$gte":start_year,"$lte":end_year} })
+                if val!=0:
+                    open_access.append({"type":"bronze" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"closed","year_published":{"$gte":start_year,"$lte":end_year} })
+                if val!=0:
+                    open_access.append({"type":"closed" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"hybrid","year_published":{"$gte":start_year,"$lte":end_year} })
+                if val!=0:
+                    open_access.append({"type":"hybrid" ,"value":val})
+            
             else:
                 venn_query={}
-                open_access.extend([
-                    {"type":"green" ,"value":self.colav_db['documents'].count_documents({"open_access_status":"green" }) },
-                    {"type":"gold"  ,"value":self.colav_db['documents'].count_documents({"open_access_status":"gold" })  },
-                    {"type":"bronze","value":self.colav_db['documents'].count_documents({"open_access_status":"bronze" })},
-                    {"type":"closed","value":self.colav_db['documents'].count_documents({"open_access_status":"closed" })},
-                    {"type":"hybrid","value":self.colav_db['documents'].count_documents({"open_access_status":"hybrid" })}
-                ])
+                
+                val=self.colav_db['documents'].count_documents({"open_access_status":"green" })
+                if val!=0:
+                    open_access.append({"type":"green" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"gold" })
+                if val!=0:
+                    open_access.append({"type":"gold" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"bronze" })
+                if val!=0:
+                    open_access.append({"type":"bronze" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"closed" })
+                if val!=0:
+                    open_access.append({"type":"closed" ,"value":val})
+                val=self.colav_db['documents'].count_documents({"open_access_status":"hybrid" })
+                if val!=0:
+                    open_access.append({"type":"hybrid" ,"value":val})
+                
 
 
             tipos = self.colav_db['documents'].distinct("publication_type.type")
