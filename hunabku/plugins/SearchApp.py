@@ -373,7 +373,6 @@ class SearchApp(HunabkuPluginBase):
         if cursor:
             institution_list=[]
             for institution in cursor:
-                print(institution)
                 entry={
                     "id":institution["_id"],
                     "name":institution["name"],
@@ -402,13 +401,11 @@ class SearchApp(HunabkuPluginBase):
             result=self.colav_db['documents'].find({"$text":{"$search":keywords}},{"year_published":1}).sort([("year_published",ASCENDING)]).limit(1)
             if result:
                 result=list(result)
-                print(result)
                 if len(result)>0:
                     initial_year=result[0]["year_published"]
             result=self.colav_db['documents'].find({"$text":{"$search":keywords}},{"year_published":1}).sort([("year_published",DESCENDING)]).limit(1)
             if result:
                 result=list(result)
-                print(result)
                 if len(result)>0:
                     final_year=result[0]["year_published"]
                 
@@ -417,9 +414,6 @@ class SearchApp(HunabkuPluginBase):
                 "start_year":initial_year,
                 "end_year":final_year
             }
-
-            print("initial_year",initial_year)
-            print("final_year",final_year)
 
             return {"filters": filters}
         else:
@@ -436,13 +430,13 @@ class SearchApp(HunabkuPluginBase):
             result = cursor.sort([("year_published",ASCENDING)]).limit(1)
             if result:
                 result=list(result)
-                print(result)
+                
                 if len(result)>0:
                     initial_year=result[0]["year_published"]
             result=self.colav_db['documents'].find({"$text":{"$search":keywords}},{"year_published":1}).sort([("year_published",DESCENDING)]).limit(1)
             if result:
                 result=list(result)
-                print(result)
+                
                 if len(result)>0:
                     final_year=result[0]["year_published"]
         else:
@@ -450,13 +444,13 @@ class SearchApp(HunabkuPluginBase):
             result = cursor.sort([("year_published",ASCENDING)]).limit(1)
             if result:
                 result=list(result)
-                print(result)
+                
                 if len(result)>0:
                     initial_year=result[0]["year_published"]
             result=self.colav_db['documents'].find({},{"year_published":1}).sort([("year_published",DESCENDING)]).limit(1)
             if result:
                 result=list(result)
-                print(result)
+                
                 if len(result)>0:
                     final_year=result[0]["year_published"]
 
@@ -468,13 +462,18 @@ class SearchApp(HunabkuPluginBase):
         institution_filters = []
         group_filters=[]
 
-        aff_ids = cursor.distinct("authors.affiliations.id")
+        if keywords:
+            aff_pipeline =[
+                {"$match":{"$text":{"$search":keywords}}},
+                {"$project":{"authors.affiliations":1}},
+                {"$unwind":"$authors"},
+                {"$group":{"_id":{"$arrayElemAt":["$authors.affiliations.id",0]},"name":{"$first":"$authors.affiliations.name"}}},
+                {"$unwind":"$name"}
+            ]
+            cursor = self.colav_db["documents"].aggregate(aff_pipeline,allowDiskUse=True)
+            for institution in cursor:
+                entry = {"id":institution["_id"],"name":institution["name"]}
 
-
-        for id in aff_ids:
-            inst=list(self.colav_db["institutions"].find({"_id":id}))
-            if inst:
-                entry = {"id":str(id),"name":list(self.colav_db['institutions'].find({"_id":id},{"name":1}))[0]["name"]}
             institution_filters.append(entry)
 
         if start_year:
@@ -703,7 +702,6 @@ class SearchApp(HunabkuPluginBase):
                         "year_published":{"$gte":start_year,"$lte":end_year}})
                     aff_pipeline=[]
         elif start_year and not end_year:
-            #print(type(start_year),start_year,keywords,tipo)
             if keywords:
                 if institution_id:
                     cursor=self.colav_db['documents'].find({"$text":{"$search":keywords},
