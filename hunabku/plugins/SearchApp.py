@@ -276,7 +276,7 @@ class SearchApp(HunabkuPluginBase):
                     "id":str(entity["_id"]),
                     "papers_count":entity["products_count"],
                     "citations_count":entity["citations_count"],
-                    "affiliations":["name":"","id":""}]
+                    "affiliations":[{"name":"","id":""}]
 
                 }
                 
