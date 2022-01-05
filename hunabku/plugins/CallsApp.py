@@ -99,10 +99,8 @@ class CallsApp(HunabkuPluginBase):
 
         soup = BeautifulSoup(response.text,'lxml')
 
-        
         box = soup.find_all('tr',class_='odd')
-        calls = []
-        entry = {"title":"","start":"","amount":"","link":""}
+        calls_odd = []
         for e in box:
             try: 
                 
@@ -115,15 +113,45 @@ class CallsApp(HunabkuPluginBase):
 
                 url = "https://minciencias.gov.co/"+title.find('a')['href']
 
-                entry['title':title.get_text()]
-                entry['start':fecha["content"]]
-                entry['amount':cuantia.get_text()]
-                entry['link':url]
+                entry['title']=title.get_text().replace("\n","").strip()
+                entry['start']=fecha["content"]
+                entry['amount']=cuantia.get_text().replace("\n","").strip()
+                entry['link']=url
 
-                calls.append(entry)
+                calls_odd.append(entry)
 
             except:
                 continue
+        box = soup.find_all('tr',class_='even')
+        calls_even = []
+        for e in box:
+            try: 
+                
+                entry={}
+
+                title=e.find('td',class_='views-field-title')
+                cuantia = e.find('td',class_='views-field-field-cuantia-xl')
+                apertura=e.find('td',class_='views-field-field-fecha-de-apertura')
+                fecha=apertura.find('span',class_='date-display-single')
+
+                url = "https://minciencias.gov.co/"+title.find('a')['href']
+
+                entry['title']=title.get_text().replace("\n","").strip()
+                entry['start']=fecha["content"]
+                entry['amount']=cuantia.get_text().replace("\n","").strip()
+                entry['link']=url
+
+                calls_even.append(entry)
+
+            except:
+                continue
+        
+        calls=[]
+        for i in range(max([len(calls_odd),len(calls_even)])):
+            if i<len(calls_odd):
+                calls.append(calls_odd[i])
+            if i<len(calls_even):
+                calls.append(calls_even[i])
 
 
         return {"data":calls}
@@ -140,15 +168,12 @@ class CallsApp(HunabkuPluginBase):
             max_results=self.request.args.get('max') if 'max' in self.request.args else 10
             page=self.request.args.get('page') if 'page' in self.request.args else 1
             result = self.search_nih(max_results=max_results,page=page)
-
         elif data=="min":
             page=self.request.args.get('page') if 'page' in self.request.args else 1
             result = self.search_min(page=page)
-
-
-
         else:
             result=None
+
         if result:
             response = self.app.response_class(
             response=self.json.dumps(result),
